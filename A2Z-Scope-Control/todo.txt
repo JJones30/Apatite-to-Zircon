@@ -1,0 +1,125 @@
+
+Mount finder
+	Test on real mount
+
+File tags in labview
+
+XML in labview
+
+Set up VPN
+
+New microscope control program
+	Speed up video capture (2 fps really?)
+
+Clinic/base libs
+	Make disconnect do something
+	Add a catch if the stage controller isn't turned on. 
+
+
+NDAs
+	Sign one for A2Z
+
+Set up git/svn for project
+
+Set up google doc for metadata
+
+Talk to ray about clinic
+	Get all features of apatite that they could look for
+		i.e. polishing scratches, etch pits, tracks, etc (for finding apatite grains)
+	Where to go from there (finding tracks I'm assuming)
+
+
+
+
+Scopetester app
+	Rename it
+	Add options for controlling stage port (COM1/2/3) and stage type (ASIms2000, ludl, etc), and config file (or just be able to edit the connection info without a config file)
+
+	Add a catch for suddenly disconnected stage and camera
+
+	add messages to the status bar for connection/etc
+
+	Add a default image for when the camera isn't connected so the window doesn't start stupidly small
+
+	Add different objectives
+
+	Make it detect when connecting to the stage fails
+
+	Check the scope RGB streaming callback and see if it cuts down the shearing
+
+	decouple this from boost/cv/lucamapi/etc if we're not actually using those (hint: we're mostly not)
+	remove absolute paths from dependancies
+
+	add some dividers and reorganize the scope menu
+
+	Look into not using CLR
+
+	Automatically adjust XY speed on different objectives to move the same visual speed
+
+	Auto focus in Z when panning around
+
+	Add validators to existing lineedits
+
+	Add an if the addnewobjectivewidget is empty don't close it on save
+
+
+
+Scopecontrol lib
+
+	catch the virtual scope up to changes in the real stage
+		camera:
+			connect, disconnect, is_connected, get_image_size, frame callbacks and video stream, get_image_size
+
+	Projects that include the lib shouldn't need to include the lib's dependancies, right?
+	remove absolute paths from dependancies
+
+	change stage->close to disconnect
+
+	The video seems flipped in x? weird
+
+	trim stagecontroller commands (WHERE->W)
+
+Eventual goals
+	Integrate the mount finder
+	Add apatite grain finder -> simply present user with the apatite grains rather than them having to find it
+	Automatically find tracks (neural network?)
+
+Qs for Ray
+	How does he figure out pixels per micron on each objective?  24 px/micron at 100x objective
+	What's his process on calibrating objective conversions? I.e. you have a point (in microns) in one objective, what is it in another
+		different objective AND different light has different coord system
+	What features of apatite can be looked for? (tracks, etch pits, polishing scratches? anything else?)
+			Search for etched scratches in apatite
+			Dark outlines?
+
+			In cali irradiated things, search for etch pits
+
+			Neural network! so cool
+		What features of useable grains vs not?
+
+		also find zircon! 
+	How do students ID apatite? I.e. how do they tell if their program works or not
+		Maybe provide some sample images they can run on that are labeled?
+	What's a good objective for IDing apatite? tracks?
+	Your workflow wrt objectives? Why/when do you switch objectives
+		As needed. If mount is super apatite rich then just start at high power, if not scan at low power for grains then switch
+
+	Does the shift from reflected->refracted always have the same offset or is it different per objective?
+
+
+
+Notes
+
+responsive video feed from stage movements
+autocalibration between objectives
+
+Notes for mudd:
+	Things to be wary of:
+		Moving Z too high and smashing the mount into an objective (DON'T DO IT, they're expensive)
+
+
+
+Junk notes
+sc off, start program, sc on, connect -> 
+
+graduation present! Yay

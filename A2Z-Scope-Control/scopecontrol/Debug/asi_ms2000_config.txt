@@ -1,0 +1,5 @@
+baud rate,9600
+flow,none
+parity,none
+stop bits,1
+char size,8

@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<virtual_data>
+	<micronsppx>1</micronsppx>
+	<micronsppy>1</micronsppy>
+	<midx>1223</midx>
+	<midy>728</midy>
+	<tilewidth>1223</tilewidth>
+	<tileheight>728</tileheight>
+	<row>
+		<image>
+			<loc>C:\Users\Ray Donelick\Pictures\xystate_com.PNG</loc>
+			<id>1</id>
+		</image>
+
+		<image>
+			<loc>C:\Users\Ray Donelick\Pictures\xystate_com.PNG</loc>
+			<id>2</id>
+		</image>
+	</row>
+	<row>
+		<image>
+			<loc>C:\Users\Ray Donelick\Pictures\xystate_com.PNG</loc>
+			<id>3</id>
+		</image>
+
+		<image>
+			<loc>C:\Users\Ray Donelick\Pictures\xystate_com.PNG</loc>
+			<id>4</id>
+		</image>
+	</row>
+</virtual_data>

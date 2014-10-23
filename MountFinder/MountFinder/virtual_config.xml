@@ -1,0 +1,143 @@
+<?xml version="1.0"?>
+<virtual_data>
+	<micronsppx>1</micronsppx>
+	<micronsppy>1</micronsppy>
+	<midx>1</midx>
+	<midy>3000</midy>
+	<tilewidth>6000</tilewidth>
+	<tileheight>6000</tileheight>
+	<row>
+		<image>
+			<loc>MultiMounts/mounts11.png</loc>
+			<id>11</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts12.png</loc>
+			<id>12</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts13.png</loc>
+			<id>13</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts14.png</loc>
+			<id>14</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts15.png</loc>
+			<id>15</id>
+		</image>
+	</row>
+
+	<row>
+		<image>
+			<loc>MultiMounts/mounts21.png</loc>
+			<id>21</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts22.png</loc>
+			<id>22</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts23.png</loc>
+			<id>23</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts24.png</loc>
+			<id>24</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts25.png</loc>
+			<id>25</id>
+		</image>
+	</row>
+
+		<row>
+		<image>
+			<loc>MultiMounts/mounts31.png</loc>
+			<id>31</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts32.png</loc>
+			<id>32</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts33.png</loc>
+			<id>33</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts34.png</loc>
+			<id>34</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts35.png</loc>
+			<id>35</id>
+		</image>
+	</row>
+
+	<row>
+		<image>
+			<loc>MultiMounts/mounts41.png</loc>
+			<id>41</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts42.png</loc>
+			<id>42</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts43.png</loc>
+			<id>43</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts44.png</loc>
+			<id>44</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts45.png</loc>
+			<id>45</id>
+		</image>
+	</row>
+
+	<row>
+		<image>
+			<loc>MultiMounts/mounts51.png</loc>
+			<id>51</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts52.png</loc>
+			<id>52</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts53.png</loc>
+			<id>53</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts54.png</loc>
+			<id>54</id>
+		</image>
+
+		<image>
+			<loc>MultiMounts/mounts55.png</loc>
+			<id>55</id>
+		</image>
+	</row>
+</virtual_data>

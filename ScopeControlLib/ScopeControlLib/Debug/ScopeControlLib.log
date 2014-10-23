@@ -1,0 +1,38 @@
+﻿Build started 8/19/2014 3:50:09 PM.
+     1>Project "C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\ScopeControlLib\ScopeControlLib.vcxproj" on node 2 (Build target(s)).
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Lumenera Corporation\Lumenera Camera SDK\Include" /I"C:\Program Files\boost_1_55_0" /I"C:\Program Files\opencv\build\include\\" /I"C:\Program Files\opencv\build\include\opencv" /AI"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0" /AI"C:\Program Files (x86)\Windows Kits\8.1\References\CommonConfiguration\Neutral" /Zi /clr /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _USRDLL /D SCOPECONTROLLIB_EXPORTS /D _CRT_SECURE_NO_WARNINGS /D _WINDLL /D _UNICODE /D UNICODE /EHa /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yc"stdafx.h" /Fp"Debug\ScopeControlLib.pch" /Fo"Debug\\" /Fd"Debug\vc120.pdb" /TP /FU"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0\mscorlib.dll" /analyze- /errorReport:prompt /clr:nostdlib stdafx.cpp
+         stdafx.cpp
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Lumenera Corporation\Lumenera Camera SDK\Include" /I"C:\Program Files\boost_1_55_0" /I"C:\Program Files\opencv\build\include\\" /I"C:\Program Files\opencv\build\include\opencv" /AI"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0" /AI"C:\Program Files (x86)\Windows Kits\8.1\References\CommonConfiguration\Neutral" /Zi /clr /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _USRDLL /D SCOPECONTROLLIB_EXPORTS /D _CRT_SECURE_NO_WARNINGS /D _WINDLL /D _UNICODE /D UNICODE /EHa /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yu"stdafx.h" /Fp"Debug\ScopeControlLib.pch" /Fo"Debug\\" /Fd"Debug\vc120.pdb" /TP /FU"C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0\mscorlib.dll" /analyze- /errorReport:prompt /clr:nostdlib ScopeControlLib.cpp camera.cpp scopecontrol.cpp virtual_stage.cpp
+         ScopeControlLib.cpp
+         camera.cpp
+     1>camera.cpp(73): warning C4101: 'iPixelFormat' : unreferenced local variable
+     1>camera.cpp(71): warning C4101: 'fClockSpeed' : unreferenced local variable
+         scopecontrol.cpp
+     1>c:\users\ray donelick\documents\ravi\scopecontrollib\scopecontrollib\scopecontrol.h(12): warning C4005: '_WIN32_WINNT' : macro redefinition
+                 C:\Program Files (x86)\Windows Kits\8.1\Include\shared\SDKDDKVer.h(200) : see previous definition of '_WIN32_WINNT'
+         virtual_stage.cpp
+     1>virtual_stage.cpp(103): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>virtual_stage.cpp(105): warning C4018: '<=' : signed/unsigned mismatch
+     1>virtual_stage.cpp(108): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>virtual_stage.cpp(109): warning C4018: '<=' : signed/unsigned mismatch
+     1>virtual_stage.cpp(131): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>virtual_stage.cpp(133): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+         Generating Code...
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Lumenera Corporation\Lumenera Camera SDK\Include" /I"C:\Program Files\boost_1_55_0" /I"C:\Program Files\opencv\build\include\\" /I"C:\Program Files\opencv\build\include\opencv" /Zi /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _USRDLL /D SCOPECONTROLLIB_EXPORTS /D _CRT_SECURE_NO_WARNINGS /D _WINDLL /D _UNICODE /D UNICODE /EHa /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /TP /analyze- /errorReport:prompt dllmain.cpp
+         dllmain.cpp
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\Debug\ScopeControlLib.dll" /INCREMENTAL /NOLOGO /LIBPATH:"C:\Program Files\opencv\build\x86\vc12\lib" /LIBPATH:"C:\Program Files\boost_1_55_0\stage\lib" /LIBPATH:"C:\Program Files (x86)\Lumenera Corporation\Lumenera Camera SDK\Lib\lib32" opencv_core249d.lib opencv_imgproc249d.lib opencv_highgui249d.lib opencv_ml249d.lib opencv_video249d.lib opencv_features2d249d.lib opencv_calib3d249d.lib opencv_objdetect249d.lib opencv_contrib249d.lib opencv_legacy249d.lib opencv_flann249d.lib lucamapi.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\Debug\ScopeControlLib.pdb" /ASSEMBLYDEBUG /SUBSYSTEM:WINDOWS /TLBID:1 /DYNAMICBASE /FIXED:NO /NXCOMPAT /MACHINE:X86 /DLL Debug\camera.obj
+         Debug\dllmain.obj
+         Debug\scopecontrol.obj
+         Debug\ScopeControlLib.obj
+         Debug\stdafx.obj
+         Debug\virtual_stage.obj
+         "Debug\.NETFramework,Version=v4.0.AssemblyAttributes.obj"
+            Creating library C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\Debug\ScopeControlLib.lib and object C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\Debug\ScopeControlLib.exp
+         ScopeControlLib.vcxproj -> C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\Debug\ScopeControlLib.dll
+     1>Done Building Project "C:\Users\Ray Donelick\Documents\Ravi\ScopeControlLib\ScopeControlLib\ScopeControlLib.vcxproj" (Build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:06.92
