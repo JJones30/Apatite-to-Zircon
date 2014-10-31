@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 import cv2
 import RayCast as rc
 from skimage.filter import (canny, gaussian_filter, threshold_otsu)
-from skimage import measure
+from skimage import measure, morphology
 from matplotlib import colors
+
+import scipy as sc
 
 from skimage.draw import line
 
@@ -35,8 +37,8 @@ def rayCasting(image):
 
     for x in range(0,len(image),squareSize):
         for y in range(0,len(image[x]),squareSize):
-            dist = rc.rotatingWhiteDistance(image, (x,y), 5)[1]
-            if dist < .01*image_dimensions[0]:
+            dist = rc.rotatingWhiteDistance(image, (x,y), 20)[1]
+            if dist < .005*image_dimensions[0]:
                 dist = 255
             newImage[x][y] = 255 - dist
 
@@ -47,7 +49,8 @@ def rayCasting(image):
     return probs
 
 def rcEdges(image):
-    edges = makeEdges(image)
+    #edges = makeEdges(image)
+    edges = erodeEdges(image)
     return rayCasting(edges)
 
 def rcAllLines(image):
@@ -88,7 +91,7 @@ def makeEdges(raw_image):
     edges = edgesFilt > thresh
     edges = edges.astype(np.int) *255
 
-    cv2.imwrite('edge_testing.jpg',edges)
+    cv2.imwrite('Images/edge_testing.jpg',edges)
     return edges
 
 def makeAllLines(raw_image):
@@ -99,7 +102,7 @@ def makeAllLines(raw_image):
     edges = edgesFilt > thresh
     edges = edges.astype(np.int) *255
 
-    cv2.imwrite('alllines_testing.jpg',edges)
+    cv2.imwrite('Images/alllines_testing.jpg',edges)
     return edges
 
 
@@ -129,5 +132,87 @@ def colorEdges(image, color_image):
             color_image[x][y] = color
             color_image[x][min(y + 1, maxY - 1)] = color
             color_image[x][max(y - 1, 0)] = color
-    cv2.imwrite('contour_detect.jpg',color_image)
-    print "done"
+    cv2.imwrite('Images/contour_detect.jpg',color_image)
+
+
+
+def makeSkeleton(raw_image):
+    im = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
+    im = cv2.threshold(im, 0, 255, cv2.THRESH_OTSU)[1]
+    cv2.imwrite("Images/skeleton_test_1.jpg", im)
+
+    im2 = morphology.skeletonize(im > 0)
+
+    image = im2.astype(np.int) * 255
+
+
+    cv2.imwrite("Images/skeleton_test_end.jpg", image)
+
+    return
+
+def erodeEdges(raw_image):
+
+    edges = canny(raw_image, sigma=2.5)
+    allLines = canny(raw_image, sigma=.25)
+    edgesFilt = gaussian_filter(edges, 3.5)
+    thresh = threshold_otsu(edgesFilt)
+    edges = edgesFilt > thresh
+
+    im = morphology.erosion(edges,morphology.square(7))
+
+    im2 = morphology.skeletonize(im > 0)
+
+    image = im2.astype(np.int) * 255
+
+
+    cv2.imwrite("Images/erosion_test.jpg", image)
+    return image
+
+
+
+def makeDstTransofrm(raw_image, bw_image):
+    skel = erodeEdges(bw_image)
+
+    im = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
+
+    im = cv2.threshold(im, 0, 255, cv2.THRESH_OTSU)[1]
+
+
+    edg = cv2.bitwise_not(im)
+
+    for x in range(len(im)):
+        for y in range(len(im[x])):
+            im[x][y] = skel[x][y]
+
+    im = cv2.bitwise_not(im)
+    cv2.imwrite("Images/skeleton_test_1.jpg", im)
+
+    dstTrans = cv2.distanceTransform(im, distanceType=1, maskSize=5)
+
+    dstTrans = (make01Values(dstTrans) * 255)
+
+    dstTrans = weightToBestValue(dstTrans, 150, 20)
+
+    cv2.imwrite("Images/dstTrans_test_end.jpg", dstTrans)
+
+
+    return dstTrans
+
+def weightToBestValue(image,value, rng):
+    image_dimensions = np.shape(image)
+    newImage = np.zeros(image_dimensions)
+    for x in range(len(image)):
+        for y in range(len(image[x])):
+            if image[x][y] > value + rng or image[x][y] < value - rng:
+                newImage[x][y] = 255 - abs(image[x][y] - value)
+            else: newImage[x][y] = 255
+    return newImage
+
+def fillConectedAreas(image):
+    skeleton = erodeEdges(image)
+
+    fill_holes = sc.ndimage.binary_fill_holes(skeleton).astype(int)
+    cv2.imwrite("Images/fill_holes_test.jpg", fill_holes * 255)
+
+
+

@@ -16,7 +16,7 @@ import math
 #cv2.imwrite('scratches.jpg', thresh)
 
 
-img = cv2.imread('Capture1.png', 0)
+img = cv2.imread('Images/Capture1.png', 0)
 #img = cv2.imread('191052.jpg', 0)
 edges_1 = cv2.Canny(img,275,196)
 edges_1 = cv2.Canny(img,275,196)
@@ -35,18 +35,18 @@ removed_edges3 = cv2.GaussianBlur(removed_edges2, (1,1), 1)
 flag, removed_edges4 = cv2.threshold(removed_edges3, 1, 255, cv2.THRESH_BINARY)
 #removed_edges4 = cv2.medianBlur(removed_edges4, 3)
 
-cv2.imwrite('edges.jpg',edges)
-cv2.imwrite('rem_1.jpg',removed_edges1)
-cv2.imwrite('no_edges.jpg',removed_edges4)
+cv2.imwrite('Images/edges.jpg',edges)
+cv2.imwrite('Images/rem_1.jpg',removed_edges1)
+cv2.imwrite('Images/no_edges.jpg',removed_edges4)
 
 
 # make bw image
-im_gray = cv2.imread('Capture1.png', cv2.CV_LOAD_IMAGE_GRAYSCALE)
+im_gray = cv2.imread('Images/Capture1.png', cv2.CV_LOAD_IMAGE_GRAYSCALE)
 #im_gray = cv2.imread('191052.jpg', cv2.CV_LOAD_IMAGE_GRAYSCALE)
 (thresh, im_bw) = cv2.threshold(im_gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 thresh = 200
 im_bw = cv2.threshold(im_gray, thresh, 255, cv2.THRESH_BINARY)[1]
-cv2.imwrite('bw_image.jpg', im_bw)
+cv2.imwrite('Images/bw_image.jpg', im_bw)
 
 removed_edges_bw_1 = cv2.Canny(im_bw,100,0)
 removed_edges_bw_2 = cv2.subtract(removed_edges_bw_1, edges)
@@ -54,8 +54,8 @@ removed_edges_bw_2 = cv2.subtract(removed_edges_bw_1, edges)
 removed_edges_bw_3 = cv2.GaussianBlur(removed_edges_bw_2, (1,1), 1)
 flag, removed_edges_bw_4 = cv2.threshold(removed_edges_bw_3, 1, 255, cv2.THRESH_BINARY)
 
-cv2.imwrite('rem_bw_1.jpg',removed_edges_bw_1)
-cv2.imwrite('no_edges_bw.jpg',removed_edges_bw_4)
+cv2.imwrite('Images/rem_bw_1.jpg',removed_edges_bw_1)
+cv2.imwrite('Images/no_edges_bw.jpg',removed_edges_bw_4)
 
 
 
@@ -73,7 +73,7 @@ for rho,theta in lines[0]:
     y2 = int(y0 - 100*(a))
     cv2.line(removed_edges_bw_4,(x1,y1),(x2,y2),(255,0,0),2)
 
-cv2.imwrite('houghlines1.jpg',removed_edges_bw_4)
+cv2.imwrite('Images/houghlines1.jpg',removed_edges_bw_4)
 
 
 

@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from skimage.feature import corner_harris, corner_subpix, corner_peaks, corner_moravec, corner_shi_tomasi
 
 
-raw_image =  io.imread("19848.jpg", as_grey=True)
+raw_image =  io.imread("Images/19848.jpg", as_grey=True)
 
 
 edges = canny(raw_image, sigma=.25)
@@ -51,8 +51,8 @@ for coord in coords:
     raw_image[rr, cc] = 255
 
 
-io.imsave('test_edges.jpg',newEdges)
-io.imsave('test_corners.jpg',raw_image)
+io.imsave('Images/test_edges.jpg',newEdges)
+io.imsave('Images/test_corners.jpg',raw_image)
 
 
 

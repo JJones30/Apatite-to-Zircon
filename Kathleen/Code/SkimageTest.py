@@ -22,7 +22,7 @@ from skimage import data
 # Construct test image
 
 #image =  io.imread("Capture1.png", as_grey=True)
-image =  io.imread("19848.jpg", as_grey=True)
+image =  io.imread("Images/19848.jpg", as_grey=True)
 
 # Line finding, using the Probabilistic Hough Transform
 edges = canny(image, sigma=.5)
@@ -42,7 +42,7 @@ no_edges_filt = gaussian_filter(no_edges, 2)
 no_edge_thresh = threshold_otsu(no_edges_filt)
 no_edges = no_edges_filt > no_edge_thresh
 
-io.imsave("skimageEdges.jpg", edges)
+io.imsave("Images/skimageEdges.jpg", edges)
 viewer = ImageViewer(no_edges)
 
 
@@ -57,7 +57,7 @@ for line in lines:
     cv2.line(no_edges,p0,p1,(255,255,255),2)
 
 
-cv2.imwrite('test_lines.jpg',no_edges)
+cv2.imwrite('Images/test_lines.jpg',no_edges)
 
 
 

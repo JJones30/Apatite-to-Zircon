@@ -21,7 +21,7 @@ from skimage import data
 
 # Construct test image
 
-image =  io.imread("Capture1.png", as_grey=True)
+image =  io.imread("Images/Capture1.png", as_grey=True)
 #image =  io.imread("19848.jpg", as_grey=True)
 
 #edges = canny(image, sigma=.25)
@@ -50,8 +50,8 @@ test1 = label(edges, neighbors=8, background=0, return_num=False)
 #test1 = test1.astype(np.float)/ max(np.max(test1), 1)
 
 
-io.imsave('label.jpg',test1)
-io.imsave('edges.jpg',image)
+io.imsave('Images/label.jpg',test1)
+io.imsave('Images/edges.jpg',image)
 
 
 
