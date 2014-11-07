@@ -36,6 +36,14 @@ MainWindow::~MainWindow()
 	{
 		_stage->close();
 	}
+	if (_enableVirtualScope){
+		delete(_stage);
+	}
+	else
+	{
+		delete(_stage);
+		delete(_cam);
+	}
 }
 
 void MainWindow::_addMainWidgets()
@@ -131,25 +139,43 @@ void MainWindow::_buildUserControlOptionBox()
 	_userControlOptionBoxLayout->addWidget(_stageXPosLabel, 2, 1);
 	_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2, 2);
 
-	//QLabel* yPosLabel = new QLabel("Current y-pos: ");
-	//_stageYPosLabel = new QLabel(QString::number(_yPos));
-	//_userControlOptionBoxLayout->addWidget(yPosLabel, 2.5, 0);
-	//_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2.5, 1);
+	QLabel* zoomLevelLabel = new QLabel("Current Zoom Level: ");
+	_stageZoomLabel = new QLabel(QString::number(1));
+	_userControlOptionBoxLayout->addWidget(zoomLevelLabel, 3, 0);
+	_userControlOptionBoxLayout->addWidget(_stageZoomLabel, 3, 1);
+
+	//Add take picture button
+	_takePicButton = new QPushButton("Zoom 10x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 4, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(UpdateZoom10()));
+
+	//Add take picture button
+	_takePicButton = new QPushButton("Zoom 20x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 5, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(UpdateZoom20()));
+
+	//Add take picture button
+	_takePicButton = new QPushButton("Zoom 40x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 6, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(UpdateZoom40()));
+
+	QLabel* utilityLabel = new QLabel("Utility Buttons");
+	_userControlOptionBoxLayout->addWidget(utilityLabel, 7, 0);
 
 	//Add take picture button
 	_takePicButton = new QPushButton("Take Picture!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 4, 0);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 8, 0);
 	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
 
 	//Add take picture button
-	_takePicButton = new QPushButton("Find me a corner!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 5, 0);
-	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
+	_takePicButton = new QPushButton("Zero Coordinates!", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 9, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(FindSlideOrigin()));
 
 	//Add take picture button
-	_takePicButton = new QPushButton("Begin Stitching!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 6, 0);
-	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
+	_takePicButton = new QPushButton("Begin Traversal!", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 10, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(SlideTraversal()));
 
 	_userControlOptionBox->setLayout(_userControlOptionBoxLayout);
 	 
@@ -206,7 +232,7 @@ void MainWindow::_initializeScope()
 		//Do virtual scope things
 
 		//cout << "Initializing virtual scope..." << endl;
-		_stage = std::unique_ptr<sc::VirtualScope>(new sc::VirtualScope("virtual_config.xml"));
+		_stage = new sc::VirtualScope("virtual_config.xml");
 		//cout << "Virtual scope created!" << endl;
 		_postStatus("Virtual scope created.");
 	}
@@ -215,11 +241,11 @@ void MainWindow::_initializeScope()
 		//Do real scope things!
 
 		//Create the objects
-		_cam = std::unique_ptr<sc::LumeneraCamera>(new sc::LumeneraCamera(1));
+		_cam = new sc::LumeneraCamera(1);
 
-		_stage = std::unique_ptr<sc::StageController>(new sc::StageController("COM3",
+		_stage = new sc::StageController("COM3",
 			sc::STAGE_TYPE::ASI_MS2000,
-			"C:\\Users\\Ray Donelick\\Documents\\Visual Studio 2013\\Projects\\scopecontrol\\Debug\\asi_ms2000_config.txt"));
+			"C:\\Users\\Ray Donelick\\Documents\\Visual Studio 2013\\Projects\\scopecontrol\\Debug\\asi_ms2000_config.txt");
 
 		//Camera autoconnect
 		if (_camAutoconnect)
@@ -249,10 +275,26 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		_onPositionTimer();
 	}
+	else if (event->timerId() == _traversalTimerID)
+	{
+		_onTraversalTimer();
+	}
 }
 
 void MainWindow::_onPositionTimer()
 {
+	double zoomX;
+	double zoomY;
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y; 
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
 	//Fix double precision to look correct
 	if (((_xPos > 0) && (_xPos < VERY_SMALL)) || ((_xPos < 0) && (_xPos > -VERY_SMALL)))
 		_xPos = 0;
@@ -261,8 +303,61 @@ void MainWindow::_onPositionTimer()
 		_yPos = 0;
 
 	//Update current coordinates
-	_stageXPosLabel->setText(QString::number(_xPos));
-	_stageYPosLabel->setText(QString::number(_yPos));
+	_stageXPosLabel->setText(QString::number(_xPos * zoomX));
+	_stageYPosLabel->setText(QString::number(_yPos * zoomY));
+	_stageZoomLabel->setText(QString::number(_zoomLevel));
+}
+
+void MainWindow::_onTraversalTimer()
+{
+	double zoomX;
+	double zoomY;
+	double curX;
+	double curY;
+	int yPixels = 0;
+	int xPixels = 0;
+
+	_stage->where(curX, curY); //get current X position
+
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y; xPixels = 132000; yPixels = 134000;
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y; xPixels = 85000; yPixels = 87000;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y; xPixels = 32000; yPixels = 34000;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+	SaveCurrentFrame();
+
+	if (!_stage->move(curX + 1 * _stageXYSpeed * _travRev * MM_TO_STAGE_UNITS, curY))
+		_postStatus("Failed to move stage!");
+	else
+		_xPos += _stageXYSpeed * _travRev * -1;
+
+	Sleep(500);
+	// TODO: DEBLUR HERE
+
+	int x = _xPos * zoomX;
+	int y = _yPos * zoomY;
+	if ((x > xPixels) || (x < 0))
+	{
+		_stage->where(curX, curY);
+
+		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_yPos += _stageXYSpeed;
+
+		Sleep(500);
+		_travRev *= -1;
+		if (y > yPixels)
+		{
+			killTimer(_traversalTimerID);
+		}
+	}
 }
 
 void MainWindow::_onDebugTimer()
@@ -424,6 +519,31 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 
 }
 
+void MainWindow::_previewCam()
+{
+	//get the image size from the camera
+	int imageWidth, imageHeight;
+	_cam->get_image_size(imageWidth, imageHeight);
+
+	//outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, data);
+
+	cv::Mat rawFrame;
+	cv::Mat frame;
+
+	_cam->getFrame(rawFrame);
+
+	//Resize the frame to the desired size
+
+	//std::cout << "Resizing frame..." << std::endl;
+	cv::resize(rawFrame, frame, cv::Size(_camImageDisplayWidth, _camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+	//std::cout << "Resized!" << std::endl;
+
+	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
+
+	//Convert it to a QImage and put it in _camImage
+	_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
+}
+
 void MainWindow::cameraToggle()
 {
 	if (_cam->is_connected()) //disconnect
@@ -454,6 +574,7 @@ void MainWindow::cameraToggle()
 				//std::cerr << "Failed to add video frame callback!" << std::endl; //TODO: add a log print
 				_postStatus("Failed to add video frame callback!");
 			}
+
 
 			if (!_cam->startVideoStream())
 			{
@@ -513,25 +634,46 @@ void MainWindow::ZIncrementEdit()
 
 void MainWindow::SaveCurrentFrame()
 {
-	cv::Mat outImage;
 	SYSTEMTIME st;
 	GetSystemTime(&st);
 
 	//Create time string for picture name
+	/*
 	char* timeStamp = new char[96]; //96 is 32*3 or 3 ints
 	itoa(st.wHour, timeStamp, 10);
-	itoa(st.wMinute, &timeStamp[strlen(timeStamp)], 10 /*base 10*/);
-	itoa(st.wSecond, &timeStamp[strlen(timeStamp)], 10 /*base 10*/);
+	itoa(st.wMinute, &timeStamp[strlen(timeStamp)], 10 /*base 10);
+	itoa(st.wSecond, &timeStamp[strlen(timeStamp)], 10 /*base 10);
+	*/
+
+	double zoomX;
+	double zoomY;
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y;
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+	int xPos = zoomX * _xPos;
+	int yPos = zoomY * _yPos;
+	char* position = new char[48];
+	itoa(xPos, position, 10 /*base 10*/);
+	strncpy(&position[strlen(position)], "_\0", 2);
+	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
 
 	//Create save path
 	char* folderPath = "C:/Users/Ray Donelick/Pictures/Test Images";
 	int folderlen = strlen(folderPath);
-	int timelen = strlen(timeStamp);
-	char* filename = new char[folderlen + timelen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
+	int posLen = strlen(position);
+	char* filename = new char[folderlen + posLen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
 	strncpy(filename, folderPath, folderlen);
 	strcpy(filename + folderlen, "/");
-	strncpy(filename + folderlen + 1, timeStamp, timelen);
-	strcpy(filename + folderlen + timelen + 1, ".jpg\0");
+	strncpy(filename + folderlen + 1, position, posLen);
+	strcpy(filename + folderlen + posLen + 1, ".jpg\0");
 
 	//Write out picture
 	_cam->getFrame(outImage);
@@ -539,12 +681,99 @@ void MainWindow::SaveCurrentFrame()
 
 	//Manage memory
 	delete[] filename;
-	delete[] timeStamp;
+	delete[] position;
 }
 
 void MainWindow::FindSlideOrigin()
 {
+	_xPos = 0;
+	_yPos = 0;
+	//run_corner_detection(_stage, _cam);
+}
 
+void MainWindow::SlideTraversal()
+{
+	_traversalTimerID = startTimer(0);
+	/*
+	_manual = true;
+	cameraToggle();
+	cameraToggle();
+
+	double zoomX;
+	double zoomY;
+	double curX;
+	double curY;
+	int reverse = -1;
+	int yPixels = 0;
+	int xPixels = 0;
+	int count = 1;
+
+	_stage->where(curX, curY); //get current X position
+
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y; xPixels = 132000; yPixels = 134000;
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y; xPixels = 85000; yPixels = 87000;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y; xPixels = 32000; yPixels = 34000;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+
+	for (int y = 0; y < yPixels; y = _yPos * zoomY)
+	{
+		_stage->where(curX, curY);
+		for (int x = 0; ((x < xPixels) && (x >= 0)); x = _xPos * zoomX, ++count)
+		{
+			SaveCurrentFrame();
+			
+			if (!_stage->move(curX + 1 * _stageXYSpeed * reverse * MM_TO_STAGE_UNITS, curY))
+				_postStatus("Failed to move stage!");
+			else
+				_xPos += _stageXYSpeed * reverse * -1;
+
+			if (count % 50 == 0)
+			{
+				cameraToggle();
+				cameraToggle();
+			}
+			Sleep(500);
+			// TODO: DEBLUR HERE
+
+			_stage->where(curX, curY);
+		}
+		
+
+		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_yPos += _stageXYSpeed;
+
+		Sleep(500);
+		reverse *= -1;
+	}
+
+	_manual = false;
+	cameraToggle();
+	cameraToggle();
+	*/
+}
+
+void MainWindow::UpdateZoom10()
+{
+	_zoomLevel = ZOOM_10;
+}
+
+void MainWindow::UpdateZoom20()
+{
+	_zoomLevel = ZOOM_20;
+}
+
+void MainWindow::UpdateZoom40()
+{
+	_zoomLevel = ZOOM_40;
 }
 
 void MainWindow::updateObjectives(std::vector<Objective> newObjectives)

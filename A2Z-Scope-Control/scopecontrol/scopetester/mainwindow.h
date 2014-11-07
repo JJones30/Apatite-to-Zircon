@@ -12,7 +12,7 @@
 
 #include "virtual_stage.h"
 
-#include "../MountFinder/MountFinder/MountFinder.h"
+//#include "../MountFinder/MountFinder/MountFinder.h"
 
 //scope related
 #include "objective.h"
@@ -52,7 +52,15 @@ public slots:
 	void SaveCurrentFrame();
 
 	//Find the origin of our coordinates system
-	void MainWindow::FindSlideOrigin();
+	void FindSlideOrigin();
+
+	//Begin slide traversal
+	void SlideTraversal();
+
+	//Changes zoom level
+	void UpdateZoom10();
+	void UpdateZoom20();
+	void UpdateZoom40();
 
 	//Update our main window's objectives when the user saves the edit objectives window
 	void updateObjectives(std::vector<Objective> newObjectives);
@@ -79,6 +87,7 @@ private:
 	//Timer related
 	void _onDebugTimer(); //What to do when our camera timer ticks (AKA get a frame and display it in _camImage)
 	void _onPositionTimer(); //How often to update coordinates system
+	void _onTraversalTimer();
 
 	//Key handling related
 	void _handleArrowKeyPress(QKeyEvent* event);
@@ -86,6 +95,7 @@ private:
 
 	//Logging and whatnot
 	void _postStatus(std::string status);
+	void _previewCam();
 
 
 	//Handy utility stuff
@@ -132,20 +142,23 @@ private:
 
 	QLabel* _stageXPosLabel;
 	QLabel* _stageYPosLabel;
+	QLabel* _stageZoomLabel;
 
 
 	//Window for editing objectives
 	EditObjectivesWidget* _editObjectivesWindow;
 
 	//Big important things
-	std::unique_ptr<sc::StageBase> _stage;
-	std::unique_ptr<sc::CameraBase> _cam;
+	sc::StageBase* _stage;
+	sc::CameraBase* _cam;
 	std::vector<Objective> _objectives;
+	cv::Mat _outImage;
 
 	//misc
 	int _debugUpdateDelay = 0; //delay between asking for frames from the camera
 	int _debugTimerID; //the timer ID for the camera timer
 	int _positionTimerID; //the timer ID for the coordinates update timer
+	int _traversalTimerID;
 	
 	//Stage related things
 	//Keyboard control stuff
@@ -155,13 +168,30 @@ private:
 	int _reverseX = -1;
 	int _reverseY = -1;
 	int _reverseZ = 1;
+	int _travRev = -1;
 	double _xPos = 0;
 	double _yPos = 0;
+	int _zoomLevel = 1;
 	const double VERY_SMALL = 0.000000001;
+	bool _manual = false;
 
 	//GUI related things
-	int _camImageDisplayWidth = 800;
-	int _camImageDisplayHeight = 600;
+	int _camImageDisplayWidth = 1600;
+	int _camImageDisplayHeight = 1200;
+
+	const double ZOOM_40X_X = _camImageDisplayWidth / 0.17;
+	const double ZOOM_40X_Y = _camImageDisplayHeight / 0.125;
+
+	const double ZOOM_20X_X = _camImageDisplayWidth / 0.255;
+	const double ZOOM_20X_Y = _camImageDisplayHeight / 0.19;
+
+	const double ZOOM_10X_X = _camImageDisplayWidth / 0.7;
+	const double ZOOM_10X_Y = _camImageDisplayHeight / 0.5;
+
+	const int ZOOM_10 = 10;
+	const int ZOOM_20 = 20;
+	const int ZOOM_40 = 40;
+
 
 	//Settings read from config file
 	bool _camAutoconnect = true; //whether or not to autoconnect to the camera on program start

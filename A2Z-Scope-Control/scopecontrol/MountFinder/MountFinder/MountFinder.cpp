@@ -536,7 +536,9 @@ void run_corner_detection(sc::StageBase* stage, sc::CameraBase* cam)
 	cv::imshow("Frame Display", frame);
 
 	double maxX, maxY;
-	stage->max_position(maxX, maxY);
+	maxX = 100;
+	maxY = 100;
+	//stage->max_position(maxX, maxY);
 	cv::createTrackbar("X", "Frame Display", &trackbar_x, (int)maxX, on_x);
 	cv::createTrackbar("Y", "Frame Display", &trackbar_y, (int)maxY, on_y);
 
@@ -608,10 +610,14 @@ void run_corner_detection(sc::StageBase* stage, sc::CameraBase* cam)
 			size_t frameHeight = frame.rows;
 
 			double maxX, maxY;
-			stage->max_position(maxX, maxY);
+			maxX = 100;
+			maxY = 100;
+			//stage->max_position(maxX, maxY);
 
 			double minX, minY;
-			stage->min_position(minX, minY);
+			minX = 0;
+			minY = 0;
+			//stage->min_position(minX, minY);
 
 			if (trackbar_x + frameWidth < maxX)
 			{

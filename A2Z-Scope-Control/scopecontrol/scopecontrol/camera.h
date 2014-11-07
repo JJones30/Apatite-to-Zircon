@@ -29,6 +29,7 @@ namespace sc
 		DLL_API bool connect();
 		DLL_API bool disconnect();
 		DLL_API bool getFrame(cv::Mat& outImage);
+		DLL_API bool getRawFrame(BYTE* rawFrame);
 		DLL_API bool is_connected();
 
 		DLL_API void get_image_size(int& width, int& height);
