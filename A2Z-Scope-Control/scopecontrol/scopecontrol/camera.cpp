@@ -45,6 +45,14 @@ namespace sc
 				return false;
 			}
 
+			INT iSize = _lffFormat.width * _lffFormat.height;
+			if (_lsSettings.format.pixelFormat == LUCAM_PF_16)
+				iSize *= 2;
+
+			m_pbRawFrame = new BYTE[iSize];
+			m_pbMonoFrame = new BYTE[iSize * 3];
+			m_pbColorFrame = new BYTE[iSize * 3];
+
 			//TODO Setup all the settings or load a settings file. Look more at colormonocapturedlg lines ~300
 
 			//All our class settings
@@ -70,6 +78,10 @@ namespace sc
 			_lffFormat.width = 0;
 
 			_previewCallbackRegNumber = -1;
+
+			delete(m_pbRawFrame);
+			delete(m_pbMonoFrame);
+			delete(m_pbColorFrame);
 
 			return true;
 		}
@@ -160,28 +172,16 @@ namespace sc
 
 		//CString csTemp;
 		//FLOAT fClockSpeed;
-		INT iSize;
 		//int iPixelFormat;
 
 		//BYTE bTemp;
 		//USHORT usTemp;
 
-		BYTE* m_pbRawFrame = NULL;
-		BYTE* m_pbMonoFrame = NULL;
-		BYTE* m_pbColorFrame = NULL;
+
 
 		
 
-		iSize = _lffFormat.width * _lffFormat.height;
-		if (_lsSettings.format.pixelFormat == LUCAM_PF_16)
-			iSize *= 2;
 
-		/*if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
-		if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
-		if (m_pbColorFrame != NULL) delete (m_pbColorFrame);*/
-		m_pbRawFrame = new BYTE[iSize];
-		m_pbMonoFrame = new BYTE[iSize * 3];
-		m_pbColorFrame = new BYTE[iSize * 3];
 		if ((m_pbRawFrame == NULL) || (m_pbMonoFrame == NULL) || (m_pbColorFrame == NULL))
 		{
 			std::cerr << "Failed to allocate memory for frame buffer." << std::endl;

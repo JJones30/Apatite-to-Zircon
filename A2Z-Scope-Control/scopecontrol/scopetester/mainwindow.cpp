@@ -132,12 +132,14 @@ void MainWindow::_buildUserControlOptionBox()
 	connect(_stageZIncrementEdit, SIGNAL(editingFinished()), this, SLOT(ZIncrementEdit()));
 
 	//Current Coordinates
-	QLabel* xPosLabel = new QLabel("Current xy-pos: ");
+	QLabel* xPosLabel = new QLabel("Current xyz-pos: ");
 	_stageXPosLabel = new QLabel(QString::number(_xPos));
 	_stageYPosLabel = new QLabel(QString::number(_yPos));
+	//_stageZPosLabel = new QLabel(QString::number(_zPos));
 	_userControlOptionBoxLayout->addWidget(xPosLabel, 2, 0);
 	_userControlOptionBoxLayout->addWidget(_stageXPosLabel, 2, 1);
 	_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2, 2);
+	//_userControlOptionBoxLayout->addWidget(_stageZPosLabel, 2, 3);
 
 	QLabel* zoomLevelLabel = new QLabel("Current Zoom Level: ");
 	_stageZoomLabel = new QLabel(QString::number(1));
@@ -302,9 +304,13 @@ void MainWindow::_onPositionTimer()
 	if (((_yPos > 0) && (_yPos < VERY_SMALL)) || ((_yPos < 0) && (_yPos > -VERY_SMALL)))
 		_yPos = 0;
 
+	if (((_zPos > 0) && (_zPos < VERY_SMALL)) || ((_zPos < 0) && (_zPos > -VERY_SMALL)))
+		_zPos = 0;
+
 	//Update current coordinates
 	_stageXPosLabel->setText(QString::number(_xPos * zoomX));
 	_stageYPosLabel->setText(QString::number(_yPos * zoomY));
+	//_stageZPosLabel->setText(QString::number(_zPos));
 	_stageZoomLabel->setText(QString::number(_zoomLevel));
 }
 
@@ -314,8 +320,10 @@ void MainWindow::_onTraversalTimer()
 	double zoomY;
 	double curX;
 	double curY;
+	double curZ;
 	int yPixels = 0;
 	int xPixels = 0;
+	int zoomChange = 0;
 
 	_stage->where(curX, curY); //get current X position
 
@@ -337,8 +345,38 @@ void MainWindow::_onTraversalTimer()
 	else
 		_xPos += _stageXYSpeed * _travRev * -1;
 
-	Sleep(500);
-	// TODO: DEBLUR HERE
+	Sleep(300);
+
+	// Fix Blur
+	/*
+	zoomChange = _adjustZoomLevel();
+	if (zoomChange > 0)
+	{
+		for (int i = 0; i < zoomChange; ++i)
+		{
+			_stage->where(curZ);
+			if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos += _stageZIncrement * -1;
+			Sleep(300);
+		}
+	}
+	else if (zoomChange < 0)
+	{
+		zoomChange *= -1;
+		for (int i = 0; i < zoomChange; ++i)
+		{
+			_stage->where(curZ);
+			if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos += _stageZIncrement;
+			Sleep(300);
+		}
+	}
+	*/
+
 
 	int x = _xPos * zoomX;
 	int y = _yPos * zoomY;
@@ -351,13 +389,98 @@ void MainWindow::_onTraversalTimer()
 		else
 			_yPos += _stageXYSpeed;
 
-		Sleep(500);
+		Sleep(300);
 		_travRev *= -1;
 		if (y > yPixels)
 		{
 			killTimer(_traversalTimerID);
 		}
 	}
+}
+
+int MainWindow::_adjustZoomLevel()
+{
+	int maxPos = 0;
+	int currentPos = 0;
+	int maxSum = 0;
+	double curZ;
+	int i;
+
+	for (i = 0; i < 3; ++i)
+	{
+		_cam->getFrame(_outImage);
+		cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
+		CvMat currentImg = _outImage;
+		_cloneImage = cvCloneMat(&currentImg);
+		cvSobel(&currentImg, _cloneImage, 1, 1, 1);
+		CvScalar mySum = cvSum(_cloneImage);
+		int sum = mySum.val[0];
+
+		if (sum > maxSum)
+		{
+			maxSum = sum;
+			maxPos = currentPos;
+		}
+		_stage->where(curZ);
+
+		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement;
+		
+		++currentPos;
+		Sleep(500);
+	}
+	for (i = 0; i < 3; ++i)
+	{
+		_stage->where(curZ);
+		if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement * -1;
+
+		--currentPos;
+		Sleep(500);
+	}
+	for (i = 0; i < 2; ++i)
+	{
+		_stage->where(curZ);
+		if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement * -1;
+
+		--currentPos;
+		Sleep(500);
+
+		_cam->getFrame(_outImage);
+		cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
+		CvMat currentImg = _outImage;
+		_cloneImage = cvCloneMat(&currentImg);
+		cvSobel(&currentImg, _cloneImage, 1, 1, 1);
+		CvScalar mySum = cvSum(_cloneImage);
+		int sum = mySum.val[0];
+
+		if (sum > maxSum)
+		{
+			maxSum = sum;
+			maxPos = currentPos;
+		}
+
+	}
+	for (i = 0; i < 2; ++i)
+	{
+		_stage->where(curZ);
+		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement;
+
+		++currentPos;
+		Sleep(500);
+	}
+
+	return maxPos;
 }
 
 void MainWindow::_onDebugTimer()
@@ -450,6 +573,7 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 		{
 			_postStatus("Failed to move stage!");
+			_zPos += _stageZIncrement;
 		}
 	}
 
@@ -462,6 +586,7 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 		{
 			_postStatus("Failed to move stage!");
+			_zPos += _stageZIncrement * -1;
 		}
 	}
 }
@@ -676,8 +801,9 @@ void MainWindow::SaveCurrentFrame()
 	strcpy(filename + folderlen + posLen + 1, ".jpg\0");
 
 	//Write out picture
-	_cam->getFrame(outImage);
-	cv::imwrite(filename, outImage);
+	_cam->getFrame(_outImage);
+	cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
+	cv::imwrite(filename, _outImage);
 
 	//Manage memory
 	delete[] filename;

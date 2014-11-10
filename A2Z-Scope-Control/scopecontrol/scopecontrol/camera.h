@@ -72,5 +72,10 @@ namespace sc
 		//Frame info
 		int _width;
 		int _height;
+
+		//Frames
+		BYTE* m_pbRawFrame;
+		BYTE* m_pbMonoFrame;
+		BYTE* m_pbColorFrame;
 	};
 }

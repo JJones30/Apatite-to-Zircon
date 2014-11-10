@@ -97,9 +97,9 @@ private:
 	void _postStatus(std::string status);
 	void _previewCam();
 
-
 	//Handy utility stuff
 	static QImage _Mat2QImage(const cv::Mat3b &src);
+	int _adjustZoomLevel();
 
 	int _objectiveAndLightingToIndex(int objectiveIndex, bool lighting);
 
@@ -142,6 +142,7 @@ private:
 
 	QLabel* _stageXPosLabel;
 	QLabel* _stageYPosLabel;
+	QLabel* _stageZPosLabel;
 	QLabel* _stageZoomLabel;
 
 
@@ -153,6 +154,7 @@ private:
 	sc::CameraBase* _cam;
 	std::vector<Objective> _objectives;
 	cv::Mat _outImage;
+	CvMat* _cloneImage;
 
 	//misc
 	int _debugUpdateDelay = 0; //delay between asking for frames from the camera
@@ -171,6 +173,7 @@ private:
 	int _travRev = -1;
 	double _xPos = 0;
 	double _yPos = 0;
+	double _zPos = 0;
 	int _zoomLevel = 1;
 	const double VERY_SMALL = 0.000000001;
 	bool _manual = false;
