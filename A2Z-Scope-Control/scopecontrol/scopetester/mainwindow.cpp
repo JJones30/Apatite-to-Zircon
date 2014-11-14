@@ -22,6 +22,8 @@ MainWindow::MainWindow()
 
 	//Set the focus to the central widget
 	centralWidget()->setFocus();
+
+	_stage->where(_xOffset, _yOffset);
 }
 
 MainWindow::~MainWindow()
@@ -131,6 +133,15 @@ void MainWindow::_buildUserControlOptionBox()
 	_userControlOptionBoxLayout->addWidget(_stageZIncrementEdit, 1, 1);
 	connect(_stageZIncrementEdit, SIGNAL(editingFinished()), this, SLOT(ZIncrementEdit()));
 
+	QLabel* desiredX = new QLabel("Desired X");
+	QLabel* desiredY = new QLabel("Desired Y");
+	_desiredXEdit = new QLineEdit(QString::number(_desiredX));
+	_desiredYEdit = new QLineEdit(QString::number(_desiredY));
+	_userControlOptionBoxLayout->addWidget(desiredX, 11, 0);
+	_userControlOptionBoxLayout->addWidget(_desiredXEdit, 11, 1);
+	_userControlOptionBoxLayout->addWidget(desiredY, 11, 2);
+	_userControlOptionBoxLayout->addWidget(_desiredYEdit, 11, 3);
+
 	//Current Coordinates
 	QLabel* xPosLabel = new QLabel("Current xyz-pos: ");
 	_stageXPosLabel = new QLabel(QString::number(_xPos));
@@ -178,6 +189,11 @@ void MainWindow::_buildUserControlOptionBox()
 	_takePicButton = new QPushButton("Begin Traversal!", _scopeOptionDock);
 	_userControlOptionBoxLayout->addWidget(_takePicButton, 10, 0);
 	connect(_takePicButton, SIGNAL(released()), this, SLOT(SlideTraversal()));
+
+	//Add take picture button
+	_takePicButton = new QPushButton("Go To", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 12, 0);
+	connect(_takePicButton, SIGNAL(released()), this, SLOT(SeekPosition()));
 
 	_userControlOptionBox->setLayout(_userControlOptionBoxLayout);
 	 
@@ -307,9 +323,14 @@ void MainWindow::_onPositionTimer()
 	if (((_zPos > 0) && (_zPos < VERY_SMALL)) || ((_zPos < 0) && (_zPos > -VERY_SMALL)))
 		_zPos = 0;
 
+	double x;
+	double y;
+	_stage->where(x, y);
+	_stageXPosLabel->setText(QString::number((x - _xOffset)/-10000 * zoomX));
+	_stageYPosLabel->setText(QString::number((y - _yOffset)/10000 * zoomY));
 	//Update current coordinates
-	_stageXPosLabel->setText(QString::number(_xPos * zoomX));
-	_stageYPosLabel->setText(QString::number(_yPos * zoomY));
+	//_stageXPosLabel->setText(QString::number(_xPos * zoomX));
+	//_stageYPosLabel->setText(QString::number(_yPos * zoomY));
 	//_stageZPosLabel->setText(QString::number(_zPos));
 	_stageZoomLabel->setText(QString::number(_zoomLevel));
 }
@@ -755,6 +776,49 @@ void MainWindow::ZIncrementEdit()
 {
 	//Pull the text from the relevant lineedit and assign it to the variable! Ezpz
 	_stageZIncrement = _stageZIncrementEdit->text().toDouble();
+}
+
+void MainWindow::SeekPosition()
+{
+	_desiredX = _desiredXEdit->text().toDouble();
+	_desiredY = _desiredYEdit->text().toDouble();
+	int reverseX = (_desiredX - _xPos) > 0 ? -1 : 1;
+	int reverseY = (_desiredY - _yPos) > 0 ? 1 : -1;
+	double curX;
+	double curY;
+	double zoomX;
+	double zoomY;
+
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y;
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+	_desiredX /= zoomX;
+	_desiredY /= zoomY;
+
+
+	_stage->where(curX, curY);
+	if (!_stage->move(_xOffset + _desiredX * MM_TO_STAGE_UNITS * -1, curY))
+		_postStatus("Failed to move stage!");
+	else
+		_xPos += _stageXYSpeed * reverseX * -1;
+	Sleep(2500);
+
+
+
+	_stage->where(curX, curY);
+	if (!_stage->move(curX, _yOffset +_desiredY * MM_TO_STAGE_UNITS))
+		_postStatus("Failed to move stage!");
+	else
+		_yPos += _stageXYSpeed * reverseY;
+
 }
 
 void MainWindow::SaveCurrentFrame()

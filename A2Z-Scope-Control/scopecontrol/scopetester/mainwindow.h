@@ -57,6 +57,9 @@ public slots:
 	//Begin slide traversal
 	void SlideTraversal();
 
+	//Seek to given positions
+	void SeekPosition();
+
 	//Changes zoom level
 	void UpdateZoom10();
 	void UpdateZoom20();
@@ -130,6 +133,8 @@ private:
 	QGridLayout* _userControlOptionBoxLayout;
 	QLineEdit* _stageXYSpeedEdit;
 	QLineEdit* _stageZIncrementEdit;
+	QLineEdit* _desiredXEdit;
+	QLineEdit* _desiredYEdit;
 
 
 	QDockWidget* _scopeOptionDock;
@@ -173,7 +178,11 @@ private:
 	int _travRev = -1;
 	double _xPos = 0;
 	double _yPos = 0;
+	double _xOffset = 0;
+	double _yOffset = 0;
 	double _zPos = 0;
+	double _desiredX = 0;
+	double _desiredY = 0;
 	int _zoomLevel = 1;
 	const double VERY_SMALL = 0.000000001;
 	bool _manual = false;
