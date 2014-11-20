@@ -3,30 +3,56 @@ import matplotlib.pyplot as plt
 import cv2
 import ImageCenterDetecors as icd
 
+import matplotlib.pyplot as plt
+
 
 ### create image of all 1s to store scores ###
-#raw_image = cv2.imread('Images/19848.jpg', 0)
-raw_image = cv2.imread('Images/Capture1.png', 0)
+raw_image = cv2.imread('Images/19848.jpg', 0)
+#raw_image = cv2.imread('Images/22018.jpg', 0)
+#raw_image = cv2.imread('Images/Capture1.png', 0)
+#raw_image = cv2.imread('Images/191052.jpg', 0)
 image_dimensions = np.shape(raw_image)
 scoreImg = np.zeros(image_dimensions)
-#color_image = cv2.imread('Images/19848.jpg')
-color_image = cv2.imread('Images/Capture1.png')
+color_image = cv2.imread('Images/19848.jpg')
+#color_image = cv2.imread('Images/22018.jpg')
+#color_image = cv2.imread('Images/Capture1.png')
+#color_image = cv2.imread('Images/191052.jpg')
 
 
-icd.colorEdges(raw_image, color_image)
+
+eroded_image = icd.erodeEdges(raw_image)
+denoised_skel = icd.denoiseSkeleton(eroded_image)
+full_skeleton = icd.fullSkels(raw_image)
+denoised_full_skel = icd.denoiseSkeleton(full_skeleton)
+
+#icd.denoiseSkeleton(raw_image)
+#icd.makeEdges(raw_image)
+#icd.getConnectedCompontents(raw_image, np.copy(color_image))
+#icd.fullSkels(raw_image)
+#icd.colorEdges(raw_image, np.copy(color_image))
 #icd.makeSkeleton(color_image)
-icd.erodeEdges(raw_image)
-icd.fillConectedAreas(raw_image)
+#icd.erodeEdges(raw_image)
+
 
 
 ### form a bunch of images with values between 0-1 for probabilities ###
 
 # testing map generated randomly
-random_image = icd.randomImage(raw_image)
-ray_edges = icd.rcEdges(raw_image)
-dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, raw_image))
+#random_image = icd.randomImage(raw_image)
+
+dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, denoised_skel))
+
+dstTrans_center = icd.dstTransJustCenters(dstTrans)
+
+ideal_crystal_rays = icd.raycastWithIdealCrystal(denoised_skel,20)
+
+
+#ray_edges = icd.rcEdges(denoised_skel)
+
+
+filled_crysts = icd.make01Values(icd.fillConectedAreas(denoised_full_skel))
 #ray_lines = icd.rcAllLines(raw_image)
-all_images = [(random_image, 0), (ray_edges, 1), (dstTrans, 1)] # all images and associated weights
+all_images = [(ideal_crystal_rays, 1), (dstTrans, 0), (filled_crysts, .25), (dstTrans_center, .25)] # all images and associated weights
 
 #### add base image by each probability image ###
 #scoreImg = np.add(scoreImg,ray_image)
