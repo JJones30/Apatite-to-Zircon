@@ -18,15 +18,16 @@ from skimage.draw import (line, polygon, circle,
                           ellipse, ellipse_perimeter,
                           bezier_curve)
 
-def raycastWithIdealCrystal(skeleton, numrays):
+def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     """
     sees how close ray cast from points match ideal crystal
     :param raw_image: the raw image
     :return: an image with the values from ray casting and how close they match the ideal crystal
     """
-    sample_image = cv2.imread('Images/22018.jpg', 0)
-    sample_edges = denoiseSkeleton(erodeEdges(sample_image))
-    sample_point = (800,650)
+    #sample_image = cv2.imread('Images/22018.jpg', 0)
+    sample_image = cv2.imread('Images/3396_664.jpg', 0)
+    sample_edges = denoiseSkeleton(erodeEdges(sample_image, 2.5, 3.5), 25000)
+    #sample_point = (800,650)
     sample_rays = rc.rotatingWhiteDistance(sample_edges,sample_point, numrays)[0]
 
 
@@ -46,6 +47,15 @@ def raycastWithIdealCrystal(skeleton, numrays):
 
     probs = 1 - make01Values(newImage)
 
+
+    #UNCOMMENT TO DISPLAY POINT IN IMAGE
+    for x in range(sample_point[0] - 5, sample_point[0] + 5):
+        for y in range(sample_point[1] - 5, sample_point[1] + 5):
+            sample_edges[x][y] = 255
+    print "wrote chosen point image"
+    cv2.imwrite('Images/choose_center_point.jpg',sample_edges)
+
+
     print "made ideal crystal ray cast image"
     cv2.imwrite('Images/ideal_crystal_cast.jpg',probs* 255)
 
@@ -54,14 +64,8 @@ def raycastWithIdealCrystal(skeleton, numrays):
 
 
 
-    #UNCOMMENT TO DISPLAY POINT IN IMAGE
-    """
-    for x in range(sample_point[0] - 5, sample_point[0] + 5):
-        for y in range(sample_point[1] - 5, sample_point[1] + 5):
-            sample_edges[x][y] = 255
-    print "wrote chosen point image"
-    cv2.imwrite('Images/choose_center_point.jpg',sample_edges)
-    """
+
+
 
 def differenceBetweenRays(ideal, sample):
     """
@@ -223,7 +227,7 @@ def colorEdges(image, color_image):
 
 
     #img = makeAllLines(image)
-    img = fullSkels(image)
+    img = fullSkels(image, 2, 7)
     contours = measure.find_contours(img, 0, fully_connected="high")
     for i in range(len(contours)):
         body = contours[i]
@@ -262,15 +266,15 @@ def makeSkeleton(raw_image):
 
     return
 
-def erodeEdges(raw_image):
+def erodeEdges(raw_image,sig,gaus):
     """
     works a lot better than makeSkeleton
     :param raw_image: a raw image
     :return: a clean skeletonized binary image of the edges
     """
-    edges = canny(raw_image, sigma=2.5)
+    edges = canny(raw_image, sigma=sig)
     #allLines = canny(raw_image, sigma=.25)
-    edgesFilt = gaussian_filter(edges, 3.5)
+    edgesFilt = gaussian_filter(edges, gaus)
     thresh = threshold_otsu(edgesFilt)
     edges = edgesFilt > thresh
 
@@ -284,15 +288,15 @@ def erodeEdges(raw_image):
     cv2.imwrite("Images/erosion_test.jpg", image)
     return image
 
-def fullSkels(raw_image):
+def fullSkels(raw_image, sig, gausFilt):
     """
     :param raw_image: the raw image
     :return: a skeletonized binary image of the edges, focusing more on
     providing completely enclosed areas than on clean skeletons
     """
-    edges = canny(raw_image, sigma=2)
+    edges = canny(raw_image, sig)
     #allLines = canny(raw_image, sigma=.25)
-    edgesFilt = gaussian_filter(edges, 7)
+    edgesFilt = gaussian_filter(edges, gausFilt)
     thresh = threshold_otsu(edgesFilt)
     edges = edgesFilt > thresh
 
@@ -302,12 +306,13 @@ def fullSkels(raw_image):
 
     image = im2.astype(np.int) * 255
 
+    print "made skeleton_test image"
     cv2.imwrite("Images/skeleton_test.jpg", image)
     return image
 
 
 
-def makeDstTransofrm(raw_image, skel):
+def makeDstTransofrm(raw_image, skel, ideal, rangeVal):
     """
     :param raw_image: the image as a raw image
     :param bw_image: the grayscaled image
@@ -333,7 +338,7 @@ def makeDstTransofrm(raw_image, skel):
 
     dstTrans = (make01Values(dstTrans) * 255)
 
-    dstTrans = weightToBestValue(dstTrans, 80, 10)
+    dstTrans = weightToBestValue(dstTrans, ideal, rangeVal)
 
     print "made distance transform image"
     cv2.imwrite("Images/dstTrans_test_end.jpg", dstTrans)
@@ -401,7 +406,8 @@ def getConnectedCompontents(raw_image, color_image):
     cv2.imwrite("Images/connected_test.jpg", color_image)
 
 
-def denoiseSkeleton(skeleton):
+def denoiseSkeleton(skeleton, minSize):
+    """given a skeleton of an image, return an image of the skeleton with less noise"""
 
     lw, num = measurements.label(skeleton,[[1,1,1],[1,1,1],[1,1,1]])
     area = measurements.sum(skeleton, lw, index=arange(lw.max() + 1))
@@ -411,7 +417,7 @@ def denoiseSkeleton(skeleton):
         for y in range(len(lw[x])):
             label = lw[x][y]
             areaSize = area[label]
-            if areaSize <= 25000 and areaSize != 0:
+            if areaSize <= minSize and areaSize != 0:
                 skeleton[x][y] = 0
 
     print "made denoised skeleton image"
@@ -419,11 +425,13 @@ def denoiseSkeleton(skeleton):
 
     return skeleton
 
-def dstTransJustCenters(dstTrans):
+def dstTransJustCenters(dstTrans, thresh, maxSize):
+    """given the distance transform image, return a binary threshold with the larger components removed"""
+
     #edges = threshold_otsu(dstTrans, 254)
     #edges = cv2.threshold(dstTrans,dstTrans,255,cv2.THRESH_BINARY)
     #edges = canny((1 - make01Values(dstTrans)) * 255)
-    edges = (dstTrans > .85).astype(np.int)
+    edges = (dstTrans > thresh).astype(np.int)
 
     lw, num = measurements.label(edges)
     area = measurements.sum(edges, lw, index=arange(lw.max() + 1))
@@ -432,10 +440,65 @@ def dstTransJustCenters(dstTrans):
         for y in range(len(lw[x])):
             label = lw[x][y]
             areaSize = area[label]
-            if areaSize >= 30000 and areaSize != 0:
+            if areaSize >= maxSize and areaSize != 0:
                 edges[x][y] = 0
 
     print "made dst trans centers image"
     cv2.imwrite("Images/test_dst_trans_center.jpg", edges * 255)
 
+
     return edges
+
+
+def matchTemplate(raw_image):
+    """
+    :param raw_image: grayscale image
+    :return: map of where the image matches a template of a crystal
+    """
+    img = raw_image
+    img2 = img.copy()
+    template = cv2.imread('Images/Focused_ScopeStack.jpg',0)
+    sizex = 50
+    sizey = 50
+    template = cv2.getRectSubPix(template, (sizex,sizey), (1400,270))
+
+    #template = cv2.blur(template,(5,5))
+
+    print "made template image"
+    cv2.imwrite("Images/template_for_matching.jpg", template)
+
+    # All the 6 methods for comparison in a list
+    methods = ['cv2.TM_CCOEFF', 'cv2.TM_CCOEFF_NORMED', 'cv2.TM_CCORR',
+            'cv2.TM_CCORR_NORMED', 'cv2.TM_SQDIFF', 'cv2.TM_SQDIFF_NORMED']
+    meth =  'cv2.TM_SQDIFF_NORMED'
+
+    for meth in methods:
+        img = img2.copy()
+        method = eval(meth)
+
+        # Apply template Matching
+        res = cv2.matchTemplate(img,template,method)
+
+
+        image_dimensions = np.shape(raw_image)
+        newImage = np.zeros(image_dimensions)
+
+        res = make01Values(res)
+
+        """
+        for i in range(len(newImage)):
+            for j in range(len(newImage[i])):
+                if i < len(res) and j < len(res[0]):
+                    newImage[i][j] = res[i][j]
+                else:
+                    newImage[i][j] = .25
+        """
+
+        x = sizex/2
+        y = sizey/2
+        newImage[x:x+res.shape[0], y:y+res.shape[1]] = res
+
+
+        cv2.imwrite("Images/" + meth[4:] + "_matching.jpg", newImage * 255)
+        print "made " + meth[4:] + " image"
+    return newImage
