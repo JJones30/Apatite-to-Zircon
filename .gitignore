@@ -5,6 +5,10 @@ ehthumbs.db
 # Folder config file
 Desktop.ini
 
+# Ignore Images Pls
+*.png
+*.jpg
+
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
