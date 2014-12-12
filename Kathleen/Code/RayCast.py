@@ -33,9 +33,36 @@ def rotatingWhiteDistance(image, location, precision=36):
 
     return retArray, np.std(retArray), np.mean(retArray)
 
-def rect(r, w, deg=0):		# radian if deg=0; degree if deg=1
+def rotatingWhiteDistance_b(image, location, precision=36):
+    """takes in binary image and (x,y), returns array of precision values"""
+    retArray = np.zeros(precision)
+    xMax = len(image)
+    yMax = len(image[0])
+    max_radius = max(len(image), len(image[0]))
 
+    for index in range(precision):
+        radian = math.pi*2 * (index / (precision*1.0))
+        cos_radian = cos(radian)
+        sin_radian = sin(radian)
+        for radius in range(0, max_radius):
+            x,y = radius*cos_radian, radius*sin_radian
+            x,y = location[0] + int(x), location[1] + int(y)
+            if x >= xMax or y >= yMax or x <= 0 or y <= 0:
+                break
+            pixel = image[x][y]
+            if pixel != 0:
+                break
+
+        retArray[index] = radius
+
+    return retArray, np.std(retArray), np.mean(retArray)
+
+
+
+def rect(r, w, deg=0):		# radian if deg=0; degree if deg=1
     if deg:
 	    w = pi * w / 180.0
     return r * cos(w), r * sin(w)
 
+def rect_b(r,w):
+    return r * cos(w), r * sin(w)
