@@ -1,7 +1,5 @@
 //Main window class source file
 
-#include "stdafx.h"
-
 #include "mainwindow.h"
 
 MainWindow::MainWindow()
@@ -23,7 +21,7 @@ MainWindow::MainWindow()
 	//Set the focus to the central widget
 	centralWidget()->setFocus();
 
-	_stage->where(_xOffset, _yOffset);
+	_stage->where(_xOffset, _yOffset, _zOffset);
 }
 
 MainWindow::~MainWindow()
@@ -146,11 +144,11 @@ void MainWindow::_buildUserControlOptionBox()
 	QLabel* xPosLabel = new QLabel("Current xyz-pos: ");
 	_stageXPosLabel = new QLabel(QString::number(_xPos));
 	_stageYPosLabel = new QLabel(QString::number(_yPos));
-	//_stageZPosLabel = new QLabel(QString::number(_zPos));
+	_stageZPosLabel = new QLabel(QString::number(_zPos));
 	_userControlOptionBoxLayout->addWidget(xPosLabel, 2, 0);
 	_userControlOptionBoxLayout->addWidget(_stageXPosLabel, 2, 1);
 	_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2, 2);
-	//_userControlOptionBoxLayout->addWidget(_stageZPosLabel, 2, 3);
+	_userControlOptionBoxLayout->addWidget(_stageZPosLabel, 2, 3);
 
 	QLabel* zoomLevelLabel = new QLabel("Current Zoom Level: ");
 	_stageZoomLabel = new QLabel(QString::number(1));
@@ -313,6 +311,7 @@ void MainWindow::_onPositionTimer()
 		break;
 	default: zoomX = 1; zoomY = 1;
 	}
+
 	//Fix double precision to look correct
 	if (((_xPos > 0) && (_xPos < VERY_SMALL)) || ((_xPos < 0) && (_xPos > -VERY_SMALL)))
 		_xPos = 0;
@@ -325,13 +324,11 @@ void MainWindow::_onPositionTimer()
 
 	double x;
 	double y;
+	//Update current coordinates
 	_stage->where(x, y);
 	_stageXPosLabel->setText(QString::number((x - _xOffset)/-10000 * zoomX));
 	_stageYPosLabel->setText(QString::number((y - _yOffset)/10000 * zoomY));
-	//Update current coordinates
-	//_stageXPosLabel->setText(QString::number(_xPos * zoomX));
-	//_stageYPosLabel->setText(QString::number(_yPos * zoomY));
-	//_stageZPosLabel->setText(QString::number(_zPos));
+	_stageZPosLabel->setText(QString::number(_zPos*100));
 	_stageZoomLabel->setText(QString::number(_zoomLevel));
 }
 
@@ -345,8 +342,7 @@ void MainWindow::_onTraversalTimer()
 	int yPixels = 0;
 	int xPixels = 0;
 	int zoomChange = 0;
-
-	_stage->where(curX, curY); //get current X position
+	int noChangeInY = 1;
 
 	switch (_zoomLevel)
 	{
@@ -359,63 +355,92 @@ void MainWindow::_onTraversalTimer()
 	default: zoomX = 1; zoomY = 1;
 	}
 
-	SaveCurrentFrame();
-
-	if (!_stage->move(curX + 1 * _stageXYSpeed * _travRev * MM_TO_STAGE_UNITS, curY))
-		_postStatus("Failed to move stage!");
-	else
-		_xPos += _stageXYSpeed * _travRev * -1;
-
-	Sleep(300);
-
-	// Fix Blur
-	/*
-	zoomChange = _adjustZoomLevel();
-	if (zoomChange > 0)
+	_stage->where(curX, curY);
+	int x = zoomX * (curX - _xOffset) / -10000;
+	int y = zoomY * (curY - _yOffset) / 10000;
+	if (((x > xPixels) || (x < 0)) && (_zCount % 25 == 1 && _zPos == 0))
 	{
-		for (int i = 0; i < zoomChange; ++i)
-		{
-			_stage->where(curZ);
-			if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
-				_postStatus("Failed to move stage!");
-			else
-				_zPos += _stageZIncrement * -1;
-			Sleep(300);
-		}
-	}
-	else if (zoomChange < 0)
-	{
-		zoomChange *= -1;
-		for (int i = 0; i < zoomChange; ++i)
-		{
-			_stage->where(curZ);
-			if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
-				_postStatus("Failed to move stage!");
-			else
-				_zPos += _stageZIncrement;
-			Sleep(300);
-		}
-	}
-	*/
-
-
-	int x = _xPos * zoomX;
-	int y = _yPos * zoomY;
-	if ((x > xPixels) || (x < 0))
-	{
-		_stage->where(curX, curY);
-
 		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed;
 
 		Sleep(300);
 		_travRev *= -1;
+		_zCount--;
 		if (y > yPixels)
 		{
 			killTimer(_traversalTimerID);
 		}
+		_stage->where(curX, curY);
+		noChangeInY = 0;
+	}
+
+	if (_zCount == 0)
+	{
+		SaveCurrentFrame();
+		++_zCount;
+	}
+
+	if (_zCount % 25 == 0 && _zPos == 0)
+	{
+		if (noChangeInY)
+			FocusImage();
+		else
+			noChangeInY = 1;
+
+		if (!_stage->move(curX + 1 * .45 * _travRev * MM_TO_STAGE_UNITS, curY))
+			_postStatus("Failed to move stage!");
+
+		Sleep(300);
+		_stage->move(_zOffset);
+		Sleep(300);
+		SaveCurrentFrame();
+		++_zCount;
+	}
+	else if (_zCount % 25 < 13 && _zCount % 25 > 0)
+	{
+		_stage->where(curZ);
+
+		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement;
+
+		Sleep(300);
+		SaveCurrentFrame();
+		++_zCount;
+	}
+	else if (_zPos != 0 && _zCount % 25 == 13)
+	{
+		_stage->where(curZ);
+
+		if (!_stage->move(curZ - 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement * -1;
+		Sleep(300);
+	}
+	else if (_zCount % 25 > 12)
+	{
+		_stage->where(curZ);
+
+		if (!_stage->move(curZ - 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement * -1;
+
+		Sleep(300);
+		SaveCurrentFrame();
+		++_zCount;
+	}
+	else
+	{
+		_stage->where(curZ);
+
+		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+		else
+			_zPos += _stageZIncrement;
+		Sleep(300);
 	}
 }
 
@@ -553,8 +578,6 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	{
 		if (!_stage->move(curX + 1 * _stageXYSpeed * _reverseX * MM_TO_STAGE_UNITS, curY))
 			_postStatus("Failed to move stage!");
-		else
-			_xPos += _stageXYSpeed;
 	}
 
 	//Catch left arrow presses and ignore events sent when its held down
@@ -562,8 +585,6 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	{
 		if (!_stage->move(curX + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS, curY))
 			_postStatus("Failed to move stage!");
-		else
-			_xPos += _stageXYSpeed * _reverseX;
 	}
 
 	//Catch up arrow presses and ignore events sent when its held down
@@ -571,8 +592,6 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	{
 		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * _reverseY * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed * _reverseY;
 	}
 
 	//Catch down arrow presses and ignore events sent when its held down
@@ -580,8 +599,6 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	{
 		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed;
 	}
 
 	//Catch page up presses and ignore events sent when its held down
@@ -594,6 +611,9 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 		{
 			_postStatus("Failed to move stage!");
+		}
+		else
+		{
 			_zPos += _stageZIncrement;
 		}
 	}
@@ -607,6 +627,9 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 		{
 			_postStatus("Failed to move stage!");
+		}
+		else
+		{
 			_zPos += _stageZIncrement * -1;
 		}
 	}
@@ -782,8 +805,6 @@ void MainWindow::SeekPosition()
 {
 	_desiredX = _desiredXEdit->text().toDouble();
 	_desiredY = _desiredYEdit->text().toDouble();
-	int reverseX = (_desiredX - _xPos) > 0 ? -1 : 1;
-	int reverseY = (_desiredY - _yPos) > 0 ? 1 : -1;
 	double curX;
 	double curY;
 	double zoomX;
@@ -807,33 +828,17 @@ void MainWindow::SeekPosition()
 	_stage->where(curX, curY);
 	if (!_stage->move(_xOffset + _desiredX * MM_TO_STAGE_UNITS * -1, curY))
 		_postStatus("Failed to move stage!");
-	else
-		_xPos += _stageXYSpeed * reverseX * -1;
+
 	Sleep(2500);
-
-
 
 	_stage->where(curX, curY);
 	if (!_stage->move(curX, _yOffset +_desiredY * MM_TO_STAGE_UNITS))
 		_postStatus("Failed to move stage!");
-	else
-		_yPos += _stageXYSpeed * reverseY;
 
 }
 
 void MainWindow::SaveCurrentFrame()
 {
-	SYSTEMTIME st;
-	GetSystemTime(&st);
-
-	//Create time string for picture name
-	/*
-	char* timeStamp = new char[96]; //96 is 32*3 or 3 ints
-	itoa(st.wHour, timeStamp, 10);
-	itoa(st.wMinute, &timeStamp[strlen(timeStamp)], 10 /*base 10);
-	itoa(st.wSecond, &timeStamp[strlen(timeStamp)], 10 /*base 10);
-	*/
-
 	double zoomX;
 	double zoomY;
 	switch (_zoomLevel)
@@ -847,22 +852,37 @@ void MainWindow::SaveCurrentFrame()
 	default: zoomX = 1; zoomY = 1;
 	}
 
-	int xPos = zoomX * _xPos;
-	int yPos = zoomY * _yPos;
-	char* position = new char[48];
+	//Create position string for picture name
+	double curX;
+	double curY;
+	_stage->where(curX, curY);
+	int xPos = zoomX * (curX - _xOffset)/-10000;
+	int yPos = zoomY * (curY - _yOffset)/10000;
+	int zPos = _zPos * 1000;
+	char* position = new char[72];
 	itoa(xPos, position, 10 /*base 10*/);
 	strncpy(&position[strlen(position)], "_\0", 2);
 	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
 
 	//Create save path
-	char* folderPath = "C:/Users/Ray Donelick/Pictures/Test Images";
-	int folderlen = strlen(folderPath);
-	int posLen = strlen(position);
-	char* filename = new char[folderlen + posLen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
-	strncpy(filename, folderPath, folderlen);
-	strcpy(filename + folderlen, "/");
-	strncpy(filename + folderlen + 1, position, posLen);
-	strcpy(filename + folderlen + posLen + 1, ".jpg\0");
+	char* startPath = "C:\\Users\\Ray Donelick\\Pictures\\Test Images\\";
+	int startPathLen = strlen(startPath);
+	int oldposLen = strlen(position);
+	char* folderPath = new char[startPathLen + oldposLen + 1];
+	strncpy(folderPath, startPath, startPathLen);
+	strncpy(folderPath + startPathLen, position, strlen(position));
+	strncpy(&position[oldposLen], "_\0", 2);
+	itoa(zPos, &position[strlen(position)], 10 /*base 10*/);
+	int newposLen = strlen(position);
+	char* filename = new char[startPathLen + oldposLen + newposLen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
+	strncpy(filename, folderPath, startPathLen + oldposLen);
+	strcpy(filename + startPathLen + oldposLen, "\0");
+	const char* dir_path = filename;
+	boost::filesystem::path dir(dir_path);
+	boost::filesystem::create_directory(dir);
+	strcpy(filename + startPathLen + oldposLen, "\\\0");
+	strncpy(filename + startPathLen + oldposLen + 1, position, newposLen);
+	strcpy(filename + startPathLen + oldposLen + 1 + newposLen, ".jpg\0");
 
 	//Write out picture
 	_cam->getFrame(_outImage);
@@ -872,83 +892,61 @@ void MainWindow::SaveCurrentFrame()
 	//Manage memory
 	delete[] filename;
 	delete[] position;
+	delete[] folderPath;
+}
+
+void MainWindow::FocusImage()
+{
+	double zoomX;
+	double zoomY;
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y;
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y;
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y;
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+	double curX;
+	double curY;
+	_stage->where(curX, curY);
+	int xPos = zoomX * (curX - _xOffset) / -10000;
+	int yPos = zoomY * (curY - _yOffset) / 10000;
+	int zPos = _zPos * 1000;
+	char* position = new char[72];
+	itoa(xPos, position, 10 /*base 10*/);
+	strncpy(&position[strlen(position)], "_\0", 2);
+	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
+
+	char* commonCmd = "\"\"C:\\Users\\Ray Donelick\\Downloads\\ij148\\ImageJ\\ImageJ.exe\" -macro FocuserMacro.ijm ";
+	int startPathLen = strlen(commonCmd);
+	int posLen = strlen(position);
+	char* fullCmd = new char[startPathLen + posLen + 2];
+	strncpy(fullCmd, commonCmd, startPathLen);
+	strncpy(fullCmd + startPathLen, position, strlen(position) + 1);
+	strcpy(&fullCmd[strlen(fullCmd)], "\"\0");
+
+	int okay = std::system(fullCmd);
+	if (!okay)
+		std::cerr << okay << " Everything is not Okay!" << std::endl;
+
+	delete[] position;
+	delete[] fullCmd;
 }
 
 void MainWindow::FindSlideOrigin()
 {
-	_xPos = 0;
-	_yPos = 0;
-	//run_corner_detection(_stage, _cam);
+	_stage->where(_xOffset, _yOffset, _zOffset);
+	_zPos = 0;
 }
 
 void MainWindow::SlideTraversal()
 {
 	_traversalTimerID = startTimer(0);
-	/*
-	_manual = true;
-	cameraToggle();
-	cameraToggle();
-
-	double zoomX;
-	double zoomY;
-	double curX;
-	double curY;
-	int reverse = -1;
-	int yPixels = 0;
-	int xPixels = 0;
-	int count = 1;
-
-	_stage->where(curX, curY); //get current X position
-
-	switch (_zoomLevel)
-	{
-	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y; xPixels = 132000; yPixels = 134000;
-		break;
-	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y; xPixels = 85000; yPixels = 87000;
-		break;
-	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y; xPixels = 32000; yPixels = 34000;
-		break;
-	default: zoomX = 1; zoomY = 1;
-	}
-
-
-	for (int y = 0; y < yPixels; y = _yPos * zoomY)
-	{
-		_stage->where(curX, curY);
-		for (int x = 0; ((x < xPixels) && (x >= 0)); x = _xPos * zoomX, ++count)
-		{
-			SaveCurrentFrame();
-			
-			if (!_stage->move(curX + 1 * _stageXYSpeed * reverse * MM_TO_STAGE_UNITS, curY))
-				_postStatus("Failed to move stage!");
-			else
-				_xPos += _stageXYSpeed * reverse * -1;
-
-			if (count % 50 == 0)
-			{
-				cameraToggle();
-				cameraToggle();
-			}
-			Sleep(500);
-			// TODO: DEBLUR HERE
-
-			_stage->where(curX, curY);
-		}
-		
-
-		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
-			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed;
-
-		Sleep(500);
-		reverse *= -1;
-	}
-
-	_manual = false;
-	cameraToggle();
-	cameraToggle();
-	*/
+	_zPos = 0;
 }
 
 void MainWindow::UpdateZoom10()

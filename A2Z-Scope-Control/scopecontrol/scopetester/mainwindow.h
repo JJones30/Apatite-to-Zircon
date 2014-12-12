@@ -26,6 +26,9 @@
 //other
 #include <string>
 #include <memory>
+#include <boost/filesystem.hpp>
+#include <stdio.h>
+#include "stdafx.h"
 
 #define MM_TO_STAGE_UNITS 10000 //the stage takes move positions in tenths of microns, but that could change someday
 
@@ -103,6 +106,7 @@ private:
 	//Handy utility stuff
 	static QImage _Mat2QImage(const cv::Mat3b &src);
 	int _adjustZoomLevel();
+	void FocusImage();
 
 	int _objectiveAndLightingToIndex(int objectiveIndex, bool lighting);
 
@@ -180,10 +184,12 @@ private:
 	double _yPos = 0;
 	double _xOffset = 0;
 	double _yOffset = 0;
+	double _zOffset = 0;
 	double _zPos = 0;
 	double _desiredX = 0;
 	double _desiredY = 0;
 	int _zoomLevel = 1;
+	int _zCount = 0;
 	const double VERY_SMALL = 0.000000001;
 	bool _manual = false;
 
