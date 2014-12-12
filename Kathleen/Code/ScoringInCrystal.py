@@ -12,22 +12,26 @@ file = 'Images/3396_664.jpg'
 ### create image of all 1s to store scores ###
 #raw_image = cv2.imread('Images/19848.jpg', 0)
 raw_image = cv2.imread(file, 0)
+color_image = cv2.imread(file)
+
 #raw_image = cv2.imread('Images/22018.jpg', 0)
 #raw_image = cv2.imread('Images/0_0.jpg', 0)
 #raw_image = cv2.imread('Images/Capture1.png', 0)
 #raw_image = cv2.imread('Images/191052.jpg', 0)
-
-image_dimensions = np.shape(raw_image)
-scoreImg = np.zeros(image_dimensions)
 #color_image = cv2.imread('Images/19848.jpg')
 #color_image = cv2.imread('Images/914_480.jpg')
 #color_image = cv2.imread('Images/22018.jpg')
 #color_image = cv2.imread('Images/0_0.jpg')
 #color_image = cv2.imread('Images/Capture1.png')
-color_image = cv2.imread(file)
 
 
-templateMatching = icd.matchTemplate(raw_image)
+image_dimensions = np.shape(raw_image)
+scoreImg = np.zeros(image_dimensions)
+
+
+
+
+#templateMatching = icd.matchTemplate(raw_image)
 
 eroded_image = icd.erodeEdges(raw_image,3,4.5)
 cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
@@ -40,7 +44,7 @@ cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
 
 #icd.denoiseSkeleton(raw_image)
 #icd.makeEdges(raw_image)
-#icd.getConnectedCompontents(raw_image, np.copy(color_image))
+icd.getConnectedCompontents(denoised_skel, np.copy(color_image))
 #icd.fullSkels(raw_image)
 #icd.colorEdges(raw_image, np.copy(color_image))
 #icd.makeSkeleton(color_image)
@@ -69,7 +73,7 @@ ideal_crystal_rays = icd.raycastWithIdealCrystal(denoised_skel,20, (1050,1200))
 
 
 #ray_lines = icd.rcAllLines(raw_image)
-all_images = [(ideal_crystal_rays, 2), (dstTrans, 0), (filled_crysts, .5), (dstTrans_center, .25), (templateMatching, 0)] # all images and associated weights
+all_images = [(ideal_crystal_rays, 2), (dstTrans, 0), (filled_crysts, .5), (dstTrans_center, .25)] # all images and associated weights
 
 #### add base image by each probability image ###
 #scoreImg = np.add(scoreImg,ray_image)

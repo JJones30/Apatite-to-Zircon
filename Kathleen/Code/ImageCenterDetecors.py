@@ -11,12 +11,12 @@ import scipy as sc
 from scipy.ndimage import measurements
 from pylab import (arange)
 
-from skimage.draw import line
 
 from skimage.draw import (line, polygon, circle,
                           circle_perimeter,
                           ellipse, ellipse_perimeter,
                           bezier_curve)
+import math as math
 
 def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     """
@@ -375,24 +375,24 @@ def fillConectedAreas(skeleton):
     return final
 
 
-def getConnectedCompontents(raw_image, color_image):
+def getConnectedCompontents(skeleton, color_image):
 
-    image_dimensions = np.shape(raw_image)
-    newImage = np.zeros(image_dimensions)
+    unaltered_image = np.copy(color_image)
+    image_dimensions = np.shape(skeleton)
+    (maxX, maxY) = image_dimensions
 
-    thresh = threshold_otsu(raw_image)
-    binary = raw_image < thresh
 
-    image = binary.astype(np.int)
+    #thresh = threshold_otsu(raw_image)
+    #binary = raw_image < thresh
+
+    #image = binary.astype(np.int)
 
     #image = canny(raw_image, 1)
     #image = erodeEdges(raw_image)
 
-
-    lw, num = measurements.label(image)
-    area = measurements.sum(image, lw, index=arange(lw.max() + 1))
+    lw, num = measurements.label(skeleton, [[1,1,1],[1,1,1],[1,1,1]])
+    area = measurements.sum(skeleton, lw, index=arange(lw.max() + 1))
     colors = map((lambda x:np.random.rand(3) * 255), area)
-
 
     for x in range(len(lw)):
         for y in range(len(lw[x])):
@@ -400,10 +400,202 @@ def getConnectedCompontents(raw_image, color_image):
             areaSize = area[label]
             color = colors[label]
             if areaSize >= 1000 and areaSize != 0:
+                color_image[min(x + 1, maxX - 1)][y] = color
+                color_image[max(x - 1, 0)][y] = color
                 color_image[x][y] = color
+                color_image[x][min(y + 1, maxY - 1)] = color
+                color_image[x][max(y - 1, 0)] = color
+
+    endpoints = findCountourEndPoints(lw)
+
+    red = [0,0,255]
+    for point in endpoints:
+        i,j = point
+        color_image[min(i + 1, maxX - 1)][j] = red
+        color_image[max(i - 1, 0)][j] = red
+        color_image[i][j] = red
+        color_image[i][min(j + 1, maxY - 1)] = red
+        color_image[i][max(j - 1, 0)] = red
+
+    color_image = scoreEndpointLines(endpoints, lw, color_image)
+
+    #pointsBefore = findPointsBefore(endpoints, lw)
+    #for point in pointsBefore:
+        #color_image[point[0]][point[1]] = [255,0,0]
+    #color_image = connectPointsByNearest(color_image, endpoints, lw)
+
+    """
+    contours = endpointSearch(unaltered_image, endpoints, lw, 3, pointsBefore)
+
+
+    green = [0,255,0]
+    for c in contours:
+        for point in c:
+            print point
+            color_image[point[0]][point[1]] = green
+    """
+
 
     print "made connected_test image"
     cv2.imwrite("Images/connected_test.jpg", color_image)
+
+
+def scoreEndpointLines(endpoints, labeled, color_image):
+    green = [0,255,0]
+    canConnect = np.copy(endpoints)
+    while len(endpoints) > 1:
+        point = endpoints[0]
+        pointLabel = labeled[point[0]][point[1]]
+        endpoints = endpoints[1:]
+
+        scores = []
+        for next in canConnect:
+            rr, cc = line(point[0], point[1], next[0], next[1])
+            score = getDistance(next, point)
+            if score == 0:
+                score = float("inf")
+            if labeled[next[0]][next[1]] != pointLabel:
+                score = score * 1.75
+            for i in range(len(rr)):
+                if labeled[rr[i]][cc[i]] != 0:
+                    score = score *7
+            scores += [score]
+
+        index = np.argmin(scores)
+        print scores
+        print scores[index]
+        #connectPoint = endpoints.pop(index)
+        connectPoint = canConnect[index]
+        #connectPointLabel = labeled[connectPoint[0]][connectPoint[1]]
+        #if pointLabel == connectPointLabel:
+        if scores[index] < 10000:
+            rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
+            color_image[rr, cc] = green
+
+    return color_image
+
+
+
+    return
+
+
+
+
+
+
+
+
+
+def endpointSearch(unaltered_image, endpoints, labeled, searchRange, pointsBefore):
+    contours = []
+    while len(endpoints) > 1:
+        toSearchFor = endpoints.pop()
+        unaltered_image = whiteOutLabeled(toSearchFor, unaltered_image, labeled)
+        contourFill = []
+        endpointLabel = labeled[toSearchFor[0]][toSearchFor[1]]
+        nextPoint = (-1,-1)
+        while nextPoint not in endpoints and len(contourFill) < 500:
+            nextPoint = findOtherPoints(toSearchFor, unaltered_image, endpoints, labeled, 1, pointsBefore)
+            unaltered_image[nextPoint[0]][nextPoint[1]][0] = -1
+            contourFill += [nextPoint]
+        print contourFill
+        contours += [contourFill]
+    return contours
+
+def findOtherPoints(toSearchFor, unaltered_image, endpoints, labeled, searchRange, pointsBefore):
+    image_dimensions = np.shape(labeled)
+    (maxX, maxY) = image_dimensions
+    (x,y) = toSearchFor
+    pointBefore = pointsBefore[toSearchFor]
+
+    maxVal = -float("inf")
+    point = (0,0)
+    for i in range(max(x - searchRange, 0), min(x + searchRange, maxX - 1)):
+        for j in range(max(y - searchRange, 0), min(y + searchRange, maxY - 1)):
+            dist = getDistance(pointBefore, (i,j))
+            value = unaltered_image[i][j][0] * dist
+
+            if value > maxVal:
+                point = (i,j)
+                maxVal = value
+
+    return point
+
+def whiteOutLabeled(point, image, labeled):
+    image_dimensions = np.shape(labeled)
+    (maxX, maxY) = image_dimensions
+    (x,y) = point
+    pointLabel = labeled[point[0]][point[1]]
+    for i in range(max(x - 10, 0), min(x + 10, maxX - 1)):
+        for j in range(max(y - 10, 0), min(y + 10, maxY - 1)):
+            if labeled[i][j] == pointLabel:
+                image[i][j][0] = -1
+    return image
+
+def findPointsBefore(endpoints, labeled):
+    image_dimensions = np.shape(labeled)
+    (maxX, maxY) = image_dimensions
+    pointsBefore = {}
+    for point in endpoints:
+        (x,y) = point
+        pointLabel = labeled[x][y]
+        for i in range(max(x - 1, 0), min(x + 1, maxX - 1)):
+            for j in range(max(y - 1, 0), min(y + 1, maxY - 1)):
+                if pointLabel == labeled[i][j]:
+                    print pointLabel, i, j
+                    pointsBefore[point] = (i,j)
+    return pointsBefore
+
+
+def connectPointsByNearest(color_image, endpoints, lw):
+    green = [0,255,0]
+    while len(endpoints) > 1:
+        point = endpoints[0]
+        pointLabel = lw[point[0]][point[1]]
+        endpoints = endpoints[1:]
+        dists = map(lambda x: getDistance(x, point), endpoints)
+        index = np.argmin(dists)
+        #connectPoint = endpoints.pop(index)
+        connectPoint = endpoints[index]
+        connectPointLabel = lw[connectPoint[0]][connectPoint[1]]
+        print dists[index], connectPoint, point
+        if pointLabel == connectPointLabel:
+            rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
+            color_image[rr, cc] = green
+    return color_image
+
+def findCountourEndPoints(labeled):
+    """
+    :param labeled: image with contours labeled as different number
+    :return: list of all the contour endpoints
+    """
+
+    image_dimensions = np.shape(labeled)
+    (maxX, maxY) = image_dimensions
+    end_points = []
+    for x in range(len(labeled)):
+        for y in range(len(labeled[x])):
+            label = labeled[x][y]
+            countNearby = 0
+            if label != 0:
+                for i in range(max(x - 3, 0), min(x + 3, maxX - 1)):
+                    for j in range(max(y - 3, 0), min(y + 3, maxY - 1)):
+                        nearLabel = labeled[i][j]
+                        if label == nearLabel:
+                            countNearby += 1
+                if countNearby <= 4:
+                    end_points += [(x,y)]
+    return end_points
+
+
+def getDistance(p1,p2):
+    """get Euclidean distance between two points"""
+    return math.sqrt((p1[0] - p2[0])**2 +(p1[1] - p2[1])**2)
+
+
+
+
+
 
 
 def denoiseSkeleton(skeleton, minSize):
