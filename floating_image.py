@@ -123,16 +123,20 @@ class floating_image:
                 return True
         return False
 
+    def __repr__(self):
+        return "(image at " + str(self.top_left) + ")"
+
 def grab_from_folder(folder_name):
     file_list = os.listdir(folder_name)
     print file_list
-    image_file = re.compile('[0-9]+_[0-9]+.jpg')
+    image_file = re.compile('Focused_[0-9]+_[0-9]+.jpg')
     images_with_positions = []
     for filename in file_list:
         if not image_file.match(filename):
             continue
-        fullname = "images/5x5/" + filename
+        fullname = folder_name + filename
         filename = filename.replace(".jpg", "")
+        filename = filename.replace("Focused_", "")
         x_y = tuple(filename.split("_"))
         x_y = (int(x_y[0]), -int(x_y[1]))
         image = cv2.imread(fullname)
@@ -141,7 +145,6 @@ def grab_from_folder(folder_name):
         flim = floating_image(image, x_y)
 
         images_with_positions.append(flim)
-    print images_with_positions
     return images_with_positions
 
 def mass_align(flim_array, center_location):
@@ -150,6 +153,7 @@ def mass_align(flim_array, center_location):
     aligned = set()
     frontier = []
     distances, indices = area_tree.query([center_location], k=1, eps=0.1, p=2, distance_upper_bound=1000)
+    print "indices", indices
     frontier.append(flim_array[indices[0]])
     aligned.add(flim_array[indices[0]])
 
@@ -164,16 +168,19 @@ def mass_align(flim_array, center_location):
             curr.align_other_to_me(flim)
             frontier.append(flim)
             aligned.add(flim)
+        area_tree = KDTree([flim.top_left for flim in flim_array])
 
+dirname="Kathleen/Code/Images/JT Images/"
+flim_array = grab_from_folder(dirname)
 
-flim_array = grab_from_folder("images/5x5")
+flim_array[10].align_other_to_me(flim_array[11])
 
-mass_align(flim_array, (6171, -11519))
+mass_align(flim_array, (15000, -4000))
 print "calling mass combine"
 total_im = mass_combine(flim_array, outline_images=True)
 print "mass combine ends"
 shape = total_im.shape
 smaller = cv2.resize(total_im, (shape[0]/3, shape[1]/3))
 
-plt.imshow(smaller)
+plt.imshow(smaller, cmap=cm.gray)
 plt.show()
