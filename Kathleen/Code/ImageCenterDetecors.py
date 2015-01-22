@@ -417,53 +417,43 @@ def getConnectedCompontents(skeleton, color_image):
         color_image[i][min(j + 1, maxY - 1)] = red
         color_image[i][max(j - 1, 0)] = red
 
-    color_image = scoreEndpointLines(endpoints, lw, color_image)
-
-    #pointsBefore = findPointsBefore(endpoints, lw)
-    #for point in pointsBefore:
-        #color_image[point[0]][point[1]] = [255,0,0]
-    #color_image = connectPointsByNearest(color_image, endpoints, lw)
-
-    """
-    contours = endpointSearch(unaltered_image, endpoints, lw, 3, pointsBefore)
+    newSkel = scoreEndpointLines(endpoints, lw, color_image, skeleton)
+    return newSkel
 
 
-    green = [0,255,0]
-    for c in contours:
-        for point in c:
-            print point
-            color_image[point[0]][point[1]] = green
-    """
 
 
-    print "made connected_test image"
-    cv2.imwrite("Images/connected_test.jpg", color_image)
 
 
-def scoreEndpointLines(endpoints, labeled, color_image):
+def scoreEndpointLines(endpoints, labeled, color_image, skeleton):
     green = [0,255,0]
     canConnect = np.copy(endpoints)
+    newSkel = np.copy(skeleton)
+
+    # loop through each endpoint
     while len(endpoints) > 1:
         point = endpoints[0]
-        pointLabel = labeled[point[0]][point[1]]
+        pointLabel = labeled[point[0]][point[1]] # get label of endpoint's contour
         endpoints = endpoints[1:]
 
         scores = []
-        for next in canConnect:
-            rr, cc = line(point[0], point[1], next[0], next[1])
+        for next in canConnect: # loop through all remaining endpoints
+
             score = getDistance(next, point)
-            if score == 0:
+            if score == 0: # same point
                 score = float("inf")
-            if labeled[next[0]][next[1]] != pointLabel:
-                score = score * 1.75
-            for i in range(len(rr)):
-                if labeled[rr[i]][cc[i]] != 0:
-                    score = score *7
-            scores += [score]
+                scores += [score]
+            else:
+                rr, cc = line(point[0], point[1], next[0], next[1])
+                if labeled[next[0]][next[1]] != pointLabel: # not the same contour
+                    score = score * 1.75
+                for i in range(len(rr)): # penalty for crossing over another contour to connect
+                    if labeled[rr[i]][cc[i]] != 0:
+                        score = score *7
+                scores += [score]
 
         index = np.argmin(scores)
-        print scores
-        print scores[index]
+        ##print scores[index]
         #connectPoint = endpoints.pop(index)
         connectPoint = canConnect[index]
         #connectPointLabel = labeled[connectPoint[0]][connectPoint[1]]
@@ -471,12 +461,16 @@ def scoreEndpointLines(endpoints, labeled, color_image):
         if scores[index] < 10000:
             rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
             color_image[rr, cc] = green
+            newSkel[rr,cc] = 255
 
-    return color_image
+    print "made connected_test image"
+    cv2.imwrite("Images/connected_test.jpg", color_image)
+    print "made connected_test_skeleton image"
+    cv2.imwrite("Images/connected_test_skeleton.jpg", newSkel)
+    new_filled = fillConectedAreas(newSkel)
+    cv2.imwrite("Images/connected_test_skeleton_filled.jpg", new_filled)
 
-
-
-    return
+    return newSkel
 
 
 

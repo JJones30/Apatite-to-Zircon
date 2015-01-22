@@ -7,8 +7,8 @@ import choose_centers as cc
 import matplotlib.pyplot as plt
 
 #file = 'Images/1987_708.jpg'
-#file = 'Images/Focused_ScopeStack.jpg'
-file = 'Images/3396_664.jpg'
+file = 'Images/Focused_ScopeStack.jpg'
+#file = 'Images/3396_664.jpg'
 ### create image of all 1s to store scores ###
 #raw_image = cv2.imread('Images/19848.jpg', 0)
 raw_image = cv2.imread(file, 0)
@@ -44,7 +44,7 @@ cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
 
 #icd.denoiseSkeleton(raw_image)
 #icd.makeEdges(raw_image)
-icd.getConnectedCompontents(denoised_skel, np.copy(color_image))
+connectedSkel = icd.getConnectedCompontents(denoised_skel, np.copy(color_image))
 #icd.fullSkels(raw_image)
 #icd.colorEdges(raw_image, np.copy(color_image))
 #icd.makeSkeleton(color_image)
@@ -59,13 +59,16 @@ icd.getConnectedCompontents(denoised_skel, np.copy(color_image))
 
 
 
-dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, denoised_skel, 20, 10))
+#dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, denoised_skel, 20, 10))
+dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, connectedSkel, 20, 10))
 
 dstTrans_center = icd.dstTransJustCenters(dstTrans,.99,15000)
 
-filled_crysts = icd.make01Values(icd.fillConectedAreas(denoised_full_skel))
+#filled_crysts = icd.make01Values(icd.fillConectedAreas(denoised_full_skel))
+filled_crysts = icd.make01Values(icd.fillConectedAreas(connectedSkel))
 
-ideal_crystal_rays = icd.raycastWithIdealCrystal(denoised_skel,20, (1050,1200))
+#ideal_crystal_rays = icd.raycastWithIdealCrystal(denoised_skel,20, (1050,1200))
+ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
 
 
 #ray_edges = icd.rcEdges(denoised_skel)
