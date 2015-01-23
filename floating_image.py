@@ -63,6 +63,7 @@ class floating_image:
         self.size = (image.shape[1], image.shape[0])
         self.update_position_extras()
         self.name="unnamed"
+        self.rel_pos_ests = {}
 
     def update_position_extras(self):
         self.top_left = self.position
@@ -89,22 +90,31 @@ class floating_image:
     def set_pos_relative_to_me(self, other, rel_pos):
         other.update_pos((self.top_left[0] + rel_pos[0], self.top_left[1] + rel_pos[1]))
 
-    def align_other_to_me(self, other, max_err = (200,200), min_overlap = (300, 300), noisy=False):
+    def record_initial_relative_position(self, other):
+        offset = tuple_diff(other.top_left, self.top_left)
+        self.rel_pos_ests[other.name] = offset
+
+    def align_other_to_me(self, other, max_err = (50,50), min_overlap = (300, 300), noisy=False):
         print "aligning", other.name, "to", self.name
+        if other.name in self.rel_pos_ests.keys():
+            print "using relative position estimates"
+            self.set_pos_relative_to_me(other, self.rel_pos_ests[other.name])
+            print "flims at", self.top_left, "and", other.top_left
+
         intersection = self.intersection(other)
         inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
-        if inter_size[0] < min_overlap[0] or inter_size[1] < min_overlap[1]:
+        if abs(inter_size[0]) < min_overlap[0] or abs(inter_size[1]) < min_overlap[1]:
             print "Overlap too small - not aligning"
             return False
         self_subimg = self.get_subimage(intersection[0], intersection[1])
         other_subimg = other.get_subimage(intersection[0], intersection[1])
         self_inner = self_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
         other_inner = other_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
-        strategy = cv2.TM_CCOEFF_NORMED #FIXME CCORR_NORMED
+        strategy = cv2.TM_CCORR_NORMED
         self_other_hist = cv2.matchTemplate(self_subimg, other_inner, strategy)
         other_self_hist = cv2.matchTemplate(other_subimg, self_inner, strategy)
 
-        if noisy:
+        def make_noise():
             plt.subplot(321)
             plt.title("overlapping region from im1")
             plt.imshow(self_subimg)
@@ -125,6 +135,9 @@ class floating_image:
             plt.imshow(other_self_hist)
             plt.show()
 
+        if noisy:
+            make_noise()
+
         self_other_max = cv2.minMaxLoc(self_other_hist)[3]
         other_self_max = cv2.minMaxLoc(other_self_hist)[3]
         self_offset_opinion = tuple_diff(self_other_max, max_err)
@@ -135,6 +148,8 @@ class floating_image:
 
         if self_offset_opinion[0] == max_err[0] or self_offset_opinion[1] == max_err[1]:
             print "\n\nslider is all the way to the wall, something is probably broken\n\n"
+            if not noisy:
+                make_noise()
 
         other.move(self_offset_opinion)
         return True
@@ -157,24 +172,31 @@ class floating_image:
         return False
 
     def intersection(self, other):
-        """returns a rectangle floating in the format ((tl_x, tl_y), (br_x, br_y))"""
+        """returns a rectangle in the format ((tl_x, tl_y), (br_x, br_y))"""
         #
+        intersection = None
         if self.contains(other.top_left):
-            return (other.top_left, self.bot_right)
+            intersection = (other.top_left, self.bot_right)
         elif self.contains(other.bot_right):
-            return (self.top_left, other.bot_right)
+            intersection = (self.top_left, other.bot_right)
         elif self.contains(other.top_right):
-            return ((self.top_left[0], other.top_right[1]), (other.top_right[0], self.top_left[1]))
+            intersection = ((self.top_left[0], other.top_right[1]), (other.top_right[0], self.bot_left[1]))
         elif self.contains(other.bot_left):
-            return ((other.top_left[0], self.top_left[1]), (self.top_right[0], other.bot_left[1]))
+            intersection = ((other.top_left[0], self.top_left[1]), (self.top_right[0], other.bot_left[1]))
         else:
             print "no intersection found"
-            return None
+        assert self.contains(intersection[0])
+        assert self.contains(intersection[1])
+        assert other.contains(intersection[0])
+        assert other.contains(intersection[1])
+        return intersection
 
 
     def get_subimage(self, top_left, bot_right):
         if (not self.contains(top_left)) or (not self.contains(bot_right)):
             print "failed to get subimage: desired rect not totally contained in image"
+            print "failing image located at", self.top_left
+            print "points requested are", top_left, bot_right
             return None
         local_top_left = (top_left[0] - self.top_left[0], top_left[1] - self.top_left[1])
         local_bot_right = (bot_right[0] - self.top_left[0], bot_right[1] - self.top_left[1])
@@ -288,6 +310,10 @@ move_to_0_0(flim_array)
 for i in range(len(flim_array)):
     flim_array[i].name="index " + str(i)
 
+for flim_1 in flim_array:
+    for flim_2 in flim_array:
+        flim_1.record_initial_relative_position(flim_2)
+
 if True:
 
     move_to_0_0(flim_array)
@@ -297,7 +323,7 @@ if True:
     plt.show()
     print "tl:", tl, "br:", br
     mass_align(flim_array, center_location=get_center(flim_array))
-    print "calling mass combine"
+    print "\n\ncalling mass combine\n\n"
     total_im = mass_combine(flim_array, outline_images=False)
     print "mass combine ends"
     shape = total_im.shape
@@ -305,3 +331,4 @@ if True:
 
     plt.imshow(smaller, cmap=cm.gray )
     plt.show()
+    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\5x5_2_composite.jpg", total_im)
