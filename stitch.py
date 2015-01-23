@@ -3,7 +3,6 @@ __author__ = 'Clinic'
 import cv2
 import matplotlib.pyplot as plt
 
-
 def stitch(im1, im2, offset, max_error=(50,50), disp_heatmap=False, ruin_everything=False):
     """im1 and im2 are images to be combined. offset is in format (x,y), distance down and right
        from im1 to im2, measured from the top left corner, estimated. We assume the overlap is large-ish."""
@@ -21,6 +20,7 @@ def stitch(im1, im2, offset, max_error=(50,50), disp_heatmap=False, ruin_everyth
     if ruin_everything:
         cv2.rectangle(im2, color=(255, 255, 255), thickness=10, pt1=subimage_origin, pt2=tuple_sum(subimage_origin, sub_size))
     if disp_heatmap:
+        print "heatmap max is:", max_location
         plt.subplot(221)
         plt.title("stitch heatmap")
         plt.imshow(subimage_search_heatmap)
@@ -36,6 +36,10 @@ def stitch(im1, im2, offset, max_error=(50,50), disp_heatmap=False, ruin_everyth
         plt.show()
 
     return im2_origin
+
+
+
+
 
 
 def tuple_diff(t1, t2):
