@@ -33,7 +33,7 @@ def find_max(flim_list):
         y_max = max((y_max, flim.bot_right[1]))
     return (x_max, y_max)
 
-def mass_combine(flim_list, outline_images=False):
+def mass_combine(flim_list, outline_images=False, feather=True):
     move_to_0_0(flim_list)
 
     x_max, y_max = find_max(flim_list)
@@ -43,7 +43,7 @@ def mass_combine(flim_list, outline_images=False):
     # offset will be negative if it's not working correctly
     offset = (0, 0)
     size = (x_max, y_max)
-    new_image = np.zeros((size[1], size[0]))
+    new_image = np.zeros((size[1], size[0]), dtype=np.uint8)
     i = 0
     for flim in flim_list:
         i += 1
@@ -51,7 +51,12 @@ def mass_combine(flim_list, outline_images=False):
         dest = new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]]
         if outline_images:
             cv2.rectangle(flim.image, (0,0), (flim.image.shape[1], flim.image.shape[0]), color=255, thickness=5)
-        new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = flim.image
+        if feather:
+            original = new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]]
+            new = cv2.max(flim.image, original)
+            new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = new
+        else:
+            new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = flim.image
 
     return new_image
 
@@ -94,7 +99,7 @@ class floating_image:
         offset = tuple_diff(other.top_left, self.top_left)
         self.rel_pos_ests[other.name] = offset
 
-    def align_other_to_me(self, other, max_err = (50,50), min_overlap = (300, 300), noisy=False):
+    def align_other_to_me(self, other, max_err = (100,100), min_overlap = (300, 300), noisy=False):
         print "aligning", other.name, "to", self.name
         if other.name in self.rel_pos_ests.keys():
             print "using relative position estimates"
@@ -208,7 +213,7 @@ class floating_image:
 def grab_from_folder(folder_name):
     file_list = os.listdir(folder_name)
     print file_list
-    image_file = re.compile('Focused_[0-9]+_[0-9]+.jpg')
+    image_file = re.compile('Focused_[-0-9]+_[-0-9]+.jpg')
     images_with_positions = []
     for filename in file_list:
         if not image_file.match(filename):
@@ -259,7 +264,7 @@ def mass_align(flim_array, center_location, noisy=False):
                 aligned.add(flim)
             else:
                 print "failed to align", flim.name, "to", curr.name
-            if noisy:
+            if False: #fixme turn error reporting back on
                 flim_display = visualize(flim_array)
                 plt.imshow(flim_display)
                 plt.show()
@@ -303,7 +308,7 @@ def visualize(flim_array):
         cv2.rectangle(display_image, flim.top_left, flim.bot_right, [25*(i+1), 75*(i%3), 255-25*(i+1)], thickness=20)
     return display_image
 
-dirname="C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\5x5_2\\"
+dirname="C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\5x5_1\\"
 print os.listdir(dirname)
 flim_array = grab_from_folder(dirname)
 move_to_0_0(flim_array)
@@ -324,11 +329,11 @@ if True:
     print "tl:", tl, "br:", br
     mass_align(flim_array, center_location=get_center(flim_array))
     print "\n\ncalling mass combine\n\n"
-    total_im = mass_combine(flim_array, outline_images=False)
+    total_im = mass_combine(flim_array, outline_images=False, feather=True)
     print "mass combine ends"
     shape = total_im.shape
     smaller = cv2.resize(total_im, (shape[1]/3, shape[0]/3))
 
     plt.imshow(smaller, cmap=cm.gray )
     plt.show()
-    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\5x5_2_composite.jpg", total_im)
+    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\5x5_1_composite.jpg", total_im)
