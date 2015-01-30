@@ -18,6 +18,8 @@ from skimage.draw import (line, polygon, circle,
                           bezier_curve)
 import math as math
 
+from scipy.spatial import KDTree
+
 def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     """
     sees how close ray cast from points match ideal crystal
@@ -44,6 +46,7 @@ def raycastWithIdealCrystal(skeleton, numrays, sample_point):
             newImage[x][y] = val
 
     makeSquaresSameValue(newImage, squareSize)
+
 
     probs = 1 - make01Values(newImage)
 
@@ -273,7 +276,6 @@ def erodeEdges(raw_image,sig,gaus):
     :return: a clean skeletonized binary image of the edges
     """
     edges = canny(raw_image, sigma=sig)
-    #allLines = canny(raw_image, sigma=.25)
     edgesFilt = gaussian_filter(edges, gaus)
     thresh = threshold_otsu(edgesFilt)
     edges = edgesFilt > thresh
@@ -371,6 +373,8 @@ def fillConectedAreas(skeleton):
 
     fill_holes = sc.ndimage.binary_fill_holes(skeleton).astype(int)
     final = (fill_holes * 255) - skeleton
+    final= make01Values(gaussian_filter(final, sigma=20))*255
+    print "made fill holes image"
     cv2.imwrite("Images/fill_holes_test.jpg", final)
     return final
 
@@ -417,7 +421,8 @@ def getConnectedCompontents(skeleton, color_image):
         color_image[i][min(j + 1, maxY - 1)] = red
         color_image[i][max(j - 1, 0)] = red
 
-    newSkel = scoreEndpointLines(endpoints, lw, color_image, skeleton)
+    #newSkel = scoreEndpointLines(endpoints, lw, color_image, skeleton)
+    newSkel = scoreEndpointLinesKDTree(endpoints, lw, color_image, skeleton)
     return newSkel
 
 
@@ -467,11 +472,54 @@ def scoreEndpointLines(endpoints, labeled, color_image, skeleton):
     cv2.imwrite("Images/connected_test.jpg", color_image)
     print "made connected_test_skeleton image"
     cv2.imwrite("Images/connected_test_skeleton.jpg", newSkel)
-    new_filled = fillConectedAreas(newSkel)
-    cv2.imwrite("Images/connected_test_skeleton_filled.jpg", new_filled)
 
     return newSkel
 
+def scoreEndpointLinesKDTree(endpoints, labeled, color_image, skeleton):
+    green = [0,255,0]
+    canConnect = np.copy(endpoints)
+    newSkel = np.copy(skeleton)
+
+    tree = KDTree(canConnect)
+
+    maxVal = 10000
+
+    # loop through each endpoint
+    while len(endpoints) > 1:
+        point = endpoints[0]
+        pointLabel = labeled[point[0]][point[1]] # get label of endpoint's contour
+        endpoints = endpoints[1:] #remove ednpoint in use
+        distances, possibilities = tree.query(point, k=100, distance_upper_bound=maxVal)
+
+        scores = []
+        pts = []
+        for i in range(len(possibilities)): # loop through all nearby endpoints
+
+            nxt = tree.data[possibilities[i]]
+            score = distances[i]#getDistance(nxt, point)
+            if score != 0:
+                rr, cc = line(point[0], point[1], nxt[0], nxt[1])
+                if labeled[nxt[0]][nxt[1]] != pointLabel: # not the same contour
+                    score = score * 1.75
+                for i in range(len(rr)): # penalty for crossing over another contour to connect
+                    if labeled[rr[i]][cc[i]] != 0:
+                        score = score *7
+                pts += [nxt]
+                scores += [score]
+
+        index = np.argmin(scores)
+        connectPoint = pts[index]
+        if scores[index] < maxVal:
+            rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
+            color_image[rr, cc] = green
+            newSkel[rr,cc] = 255
+
+    print "made connected_test image"
+    cv2.imwrite("Images/connected_test.jpg", color_image)
+    print "made connected_test_skeleton image"
+    cv2.imwrite("Images/connected_test_skeleton.jpg", newSkel)
+
+    return newSkel
 
 
 
@@ -557,6 +605,7 @@ def connectPointsByNearest(color_image, endpoints, lw):
             rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
             color_image[rr, cc] = green
     return color_image
+
 
 def findCountourEndPoints(labeled):
     """
@@ -688,3 +737,32 @@ def matchTemplate(raw_image):
         cv2.imwrite("Images/" + meth[4:] + "_matching.jpg", newImage * 255)
         print "made " + meth[4:] + " image"
     return newImage
+
+
+
+def basicDstTrans(raw_image, skel):
+    """ run out-of-box distance transform
+    """
+
+    im = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
+
+    im = cv2.threshold(im, 0, 255, cv2.THRESH_OTSU)[1]
+
+
+    edg = cv2.bitwise_not(im)
+
+    for x in range(len(im)):
+        for y in range(len(im[x])):
+            im[x][y] = skel[x][y]
+
+    im = cv2.bitwise_not(im)
+
+    dstTrans = cv2.distanceTransform(im, distanceType=1, maskSize=5)
+
+    dstTrans = make01Values(dstTrans)
+
+
+    print "made distance transform basic image"
+    cv2.imwrite("Images/dstTrans_basic.jpg", dstTrans*255)
+
+    return dstTrans
