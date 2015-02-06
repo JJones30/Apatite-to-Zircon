@@ -14,6 +14,8 @@ def chooseCenters(center_map, color_image):
     #minSumArea = 2250000
     minSumArea = 1900000 # minimum value of the sum of all points in the crystal-szied area
 
+    texture_image = cv2.imread('Images/3396_664.jpg',0)
+
     (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) # choose max value
 
     xbound = len(center_map)
@@ -28,6 +30,9 @@ def chooseCenters(center_map, color_image):
             center_map[x][y] = minVal
         else:
             if x != 0 and y != 0:
+
+                #textureMatcher(color_image, texture_image, (x,y), (700,700), crystalSize)
+
                 centers.append((x,y))
 
                 #c = (center_map[x][y] - 175)*5
@@ -84,3 +89,18 @@ def sumCrystalArea(center_map, x, y, rng):
                 total += center_map[i][j]
     return total
 
+def textureMatcher(img, texture, testPoint, texturePoint, crystalSize):
+
+
+    #Display point in image
+    sample_text = np.copy(texture)
+    for x in range(texturePoint[0] - 5, texturePoint[0] + 5):
+        for y in range(texturePoint[1] - 5, texturePoint[1] + 5):
+            sample_text[x][y] = 255
+    print "made chosen texture image"
+    cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
+
+    pointSum = sumCrystalArea(texture, testPoint[0], testPoint[1], crystalSize)
+    textureSum = sumCrystalArea(img, texturePoint[0], texturePoint[1], crystalSize)
+
+    print pointSum, textureSum
