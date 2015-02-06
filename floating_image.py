@@ -8,6 +8,7 @@ import matplotlib.cm as cm
 from scipy.spatial import KDTree
 import re
 import os
+import time
 
 print "floating_image executing"
 inf = 2**100000
@@ -308,7 +309,7 @@ def visualize(flim_array):
         cv2.rectangle(display_image, flim.top_left, flim.bot_right, [25*(i+1), 75*(i%3), 255-25*(i+1)], thickness=20)
     return display_image
 
-dirname="C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\5x5_1\\"
+dirname="C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1\\"
 print os.listdir(dirname)
 flim_array = grab_from_folder(dirname)
 move_to_0_0(flim_array)
@@ -320,20 +321,23 @@ for flim_1 in flim_array:
         flim_1.record_initial_relative_position(flim_2)
 
 if True:
-
+    start = time.time()
     move_to_0_0(flim_array)
     tl = find_min(flim_array)
     br = find_max(flim_array)
 
     plt.show()
     print "tl:", tl, "br:", br
+
     mass_align(flim_array, center_location=get_center(flim_array))
     print "\n\ncalling mass combine\n\n"
     total_im = mass_combine(flim_array, outline_images=False, feather=True)
+    end = time.time()
     print "mass combine ends"
+    print "runtime:", end-start
     shape = total_im.shape
     smaller = cv2.resize(total_im, (shape[1]/3, shape[0]/3))
 
     plt.imshow(smaller, cmap=cm.gray )
     plt.show()
-    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\5x5_1_composite.jpg", total_im)
+    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\10x10_1_composite.jpg", total_im)
