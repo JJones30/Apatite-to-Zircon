@@ -43,6 +43,8 @@ def denoiseSkeleton(skeleton, minSize):
             areaSize = area[label]
             if areaSize <= minSize and areaSize != 0:
                 skeleton[x][y] = 0
+            elif areaSize >= 550000:
+                skeleton[x][y] = 0
 
     print "made denoised skeleton image"
     cv2.imwrite("Images/denoised_skeleton.jpg", skeleton)

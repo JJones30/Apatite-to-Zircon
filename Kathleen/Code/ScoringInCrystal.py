@@ -6,7 +6,7 @@ import Skeletonizer as sk
 
 
 #file = 'Images/1987_708.jpg'
-file = 'Images/Focused_ScopeStack.jpg'
+#file = 'Images/Focused_ScopeStack.jpg'
 #file = 'Images/5x5_1_composite.jpg'
 #file = 'Images/5x5_2_composite.jpg'
 #file = 'Images/Focused_0_0.jpg'
@@ -19,6 +19,12 @@ file = 'Images/Focused_ScopeStack.jpg'
 raw_image = cv2.imread(file, 0)
 color_image = cv2.imread(file)
 
+
+
+
+# testing for center finder w/o calculating map
+scoreImg = cv2.imread('Images/center_map.jpg', 0)
+centers = cc.chooseCenters(scoreImg,np.copy(color_image))
 
 #raw_image = cv2.imread('Images/22018.jpg', 0)
 #raw_image = cv2.imread('Images/0_0.jpg', 0)
@@ -95,7 +101,7 @@ for (im, wt) in all_images:
 scoreImg = icd.make01Values(scoreImg)
 scoreImg = scoreImg * 255
 
-cv2.imwrite('Images/center_map2.jpg',scoreImg)
+cv2.imwrite('Images/center_map.jpg',scoreImg)
 
 
 centers = cc.chooseCenters(scoreImg,color_image)
