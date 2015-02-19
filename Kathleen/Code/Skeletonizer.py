@@ -8,6 +8,7 @@ from pylab import arange
 from skimage.draw import line
 from scipy.spatial import KDTree
 
+
 def erodeEdges(raw_image,sig,gaus):
     """
     works a lot better than makeSkeleton
@@ -42,8 +43,6 @@ def denoiseSkeleton(skeleton, minSize):
             label = lw[x][y]
             areaSize = area[label]
             if areaSize <= minSize and areaSize != 0:
-                skeleton[x][y] = 0
-            elif areaSize >= 550000:
                 skeleton[x][y] = 0
 
     print "made denoised skeleton image"

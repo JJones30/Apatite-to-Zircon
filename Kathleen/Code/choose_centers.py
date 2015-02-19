@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-def chooseCenters(center_map, color_image):
+def chooseCenters(center_map, color_image,gray_image):
     """
     :param center_map: 0-255 valued image where higher values are more likesly to be centers
     :param color_image: color image to insert chosen dots onto
@@ -15,6 +15,18 @@ def chooseCenters(center_map, color_image):
     minSumArea = 1900000 # minimum value of the sum of all points in the crystal-szied area
 
     texture_image = cv2.imread('Images/3396_664.jpg',0)
+    texturePoint = (700,1175)
+
+
+    #Display point in image
+    sample_text = np.copy(texture_image)
+    for x in range(texturePoint[0] - 5, texturePoint[0] + 5):
+        for y in range(texturePoint[1] - 5, texturePoint[1] + 5):
+            sample_text[x][y] = 255
+    print "made chosen texture image"
+    cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
+
+    texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], crystalSize)
 
     (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) # choose max value
 
@@ -31,19 +43,27 @@ def chooseCenters(center_map, color_image):
         else:
             if x != 0 and y != 0:
 
-                #textureMatcher(color_image, texture_image, (x,y), (700,700), crystalSize)
+                score = textureMatcher(gray_image, (x,y), crystalSize, texture_sum)
+                ranged = (min(score, 2000000.0)/2000000.0) * 255
+                #print ranged
 
                 centers.append((x,y))
 
                 #c = (center_map[x][y] - 175)*5
                 #color = [25*(c+1),75*(c%3),255-25*(c+1)]
                 #color = [0,(center_map[x][y] - minVal)*5,255 - (center_map[x][y] - minVal)*5] # color value based on peak value
-                color = [0,0,255] #red
+                red = [0,0,255]
+                green = [0,255,0]
+                color = [0,255-ranged,ranged]
 
                 for i in range(x -7, x + 7):
                     for j in range(y-7, y+7):
                         if i >= 0 and i < xbound and j >= 0 and j < ybound:
-                            color_image[i][j] = color
+                            if ranged > 200:
+                                color_image[i][j] = red
+                            else:
+                                color_image[i][j] = green
+
 
             blackOutBox(center_map, x, y, crystalSize) # set all values around chosen point to 0 to prevent multiple "centers" in small area
             (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) #choose new max
@@ -89,18 +109,12 @@ def sumCrystalArea(center_map, x, y, rng):
                 total += center_map[i][j]
     return total
 
-def textureMatcher(img, texture, testPoint, texturePoint, crystalSize):
+def textureMatcher(img, testPoint,crystalSize, pointSum):
 
 
-    #Display point in image
-    sample_text = np.copy(texture)
-    for x in range(texturePoint[0] - 5, texturePoint[0] + 5):
-        for y in range(texturePoint[1] - 5, texturePoint[1] + 5):
-            sample_text[x][y] = 255
-    print "made chosen texture image"
-    cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
 
-    pointSum = sumCrystalArea(texture, testPoint[0], testPoint[1], crystalSize)
-    textureSum = sumCrystalArea(img, texturePoint[0], texturePoint[1], crystalSize)
 
-    print pointSum, textureSum
+
+    textureSum = sumCrystalArea(img, testPoint[0], testPoint[1], crystalSize)
+
+    return abs(pointSum - textureSum)

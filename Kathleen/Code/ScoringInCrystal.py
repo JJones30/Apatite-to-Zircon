@@ -3,7 +3,20 @@ import cv2
 import ImageCenterDetecors as icd
 import choose_centers as cc
 import Skeletonizer as sk
+import RayCast_v2 as rc2
+import RayCast_v3 as rc3
 
+
+#file = 'Images/SlidesToTest/3x3_slide2.jpg'
+#file = 'Images/SlidesToTest/3x3_slide3.jpg'
+#file = 'Images/SlidesToTest/5x5_slide1.jpg'
+#file = 'Images/SlidesToTest/1129-1E2.jpg'
+#file = 'Images/SlidesToTest/1293-7.jpg'
+#file = 'Images/SlidesToTest/1293-9.jpg'
+#file = 'Images/SlidesToTest/1293-12.jpg'
+#file = 'Images/SlidesToTest/1479-4.jpg'
+#file = 'Images/SlidesToTest/1479-6.jpg'
+file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
 
 #file = 'Images/1987_708.jpg'
 #file = 'Images/Focused_ScopeStack.jpg'
@@ -22,9 +35,10 @@ color_image = cv2.imread(file)
 
 
 
+
 # testing for center finder w/o calculating map
-scoreImg = cv2.imread('Images/center_map.jpg', 0)
-centers = cc.chooseCenters(scoreImg,np.copy(color_image))
+#scoreImg = cv2.imread('Images/center_map.jpg', 0)
+#centers = cc.chooseCenters(scoreImg,np.copy(color_image), raw_image)
 
 #raw_image = cv2.imread('Images/22018.jpg', 0)
 #raw_image = cv2.imread('Images/0_0.jpg', 0)
@@ -43,7 +57,9 @@ scoreImg = np.zeros(image_dimensions)
 
 eroded_image = sk.erodeEdges(raw_image, 3, 4.5)
 cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
-denoised_skel = sk.denoiseSkeleton(eroded_image, 25000)
+#denoised_skel = sk.denoiseSkeleton(eroded_image, 25000)
+
+
 
 """
 full_skeleton = icd.fullSkels(raw_image, 1.5, 9)
@@ -52,8 +68,8 @@ denoised_full_skel = icd.denoiseSkeleton(full_skeleton, 25000)
 cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
 """
 
-
-connectedSkel = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
+connectedSkel = eroded_image
+#connectedSkel = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
 
 
 #icd.denoiseSkeleton(raw_image)
@@ -72,15 +88,18 @@ connectedSkel = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
 #random_image = icd.randomImage(raw_image)
 
 
-dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, connectedSkel, 20, 10))
+#ray_cast_2 = rc2.rayCastCenterMap(connectedSkel, (1040,1200), 4)
+#ray_cast_v3 = rc3.rayCastCenterMap(connectedSkel,(1040,1200),8, 1)
+
+#dstTrans = icd.make01Values(icd.makeDstTransofrm(color_image, connectedSkel, 20, 10))
 #dstTrans_basic = icd.basicDstTrans(color_image, connectedSkel)
 
-dstTrans_center = icd.dstTransJustCenters(dstTrans,.99,15000)
+#dstTrans_center = icd.dstTransJustCenters(dstTrans,.99,15000)
 
 
 filled_crysts = icd.make01Values(icd.fillConectedAreas(connectedSkel))
 
-ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
+#ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
 #ideal_crystal_rays = icd.raycastOnLimitedAreas(filled_crysts,connectedSkel,20, (1050,1200))
 
 
@@ -89,13 +108,15 @@ ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
 
 
 #ray_lines = icd.rcAllLines(raw_image)
-all_images = [(ideal_crystal_rays, 2),  (filled_crysts, .5), (dstTrans_center, .25)] # all images and associated weights
+#all_images = [(ray_cast_v3, 1),  (filled_crysts, .5)]
+#all_images = [(ray_cast_2, 1),  (filled_crysts, .5), (dstTrans_center, .25)]
+#all_images = [(ideal_crystal_rays, 2),  (filled_crysts, .5), (dstTrans_center, .25)] # all images and associated weights
 
 #### add base image by each probability image ###
-for (im, wt) in all_images:
-    scoreImg = np.add(im * wt,scoreImg)
+#for (im, wt) in all_images:
+    #scoreImg = np.add(im * wt,scoreImg)
 
-
+scoreImg = filled_crysts
 
 ### convert probability image into displayable heat map ###
 scoreImg = icd.make01Values(scoreImg)
@@ -104,6 +125,6 @@ scoreImg = scoreImg * 255
 cv2.imwrite('Images/center_map.jpg',scoreImg)
 
 
-centers = cc.chooseCenters(scoreImg,color_image)
+centers = cc.chooseCenters(scoreImg,color_image, raw_image)
 print "Number of crystals found:",
 print len(centers)
