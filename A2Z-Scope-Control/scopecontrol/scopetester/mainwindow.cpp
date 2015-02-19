@@ -170,9 +170,9 @@ void MainWindow::_buildUserControlOptionBox()
 	_userControlOptionBoxLayout->addWidget(utilityLabel, 7, 0);
 
 	//Add take picture button
-	_takePicButton = new QPushButton("Take Picture!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 8, 0);
-	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
+	QPushButton* takePicButton = new QPushButton("Take Picture!", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(takePicButton, 8, 0);
+	connect(takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
 
 	//A button to zero coordinates to the current position
 	QPushButton* zeroButton = new QPushButton("Zero Coordinates!", _scopeOptionDock);
@@ -181,11 +181,13 @@ void MainWindow::_buildUserControlOptionBox()
 
 	//A button to begin the traversal algorithm
 	QPushButton* traverseButton = new QPushButton("Begin Traversal!", _scopeOptionDock);
-	QLabel* completeLabel = new QLabel("% Complete: ");
-	QLabel* _progressLabel = new QLabel("N/A");
+	//QLabel* completeLabel = new QLabel("% Complete: ");
+	//_progressLabel = new QLabel("N/A");
+	_progressBar = new QProgressBar(_scopeOptionDock);
 	_userControlOptionBoxLayout->addWidget(traverseButton, 10, 0);
-	_userControlOptionBoxLayout->addWidget(completeLabel, 10, 1);
-	_userControlOptionBoxLayout->addWidget(_progressLabel, 10, 2);
+	_userControlOptionBoxLayout->addWidget(_progressBar, 10, 1);
+	//_userControlOptionBoxLayout->addWidget(completeLabel, 10, 1);
+	//_userControlOptionBoxLayout->addWidget(_progressLabel, 10, 2);
 	connect(traverseButton, SIGNAL(released()), this, SLOT(SlideTraversal()));
 
 	//Adds an interface for automatic navigation to a specified coordinate
@@ -210,6 +212,11 @@ void MainWindow::_buildUserControlOptionBox()
 	_userControlOptionBoxLayout->addWidget(setButton, 12, 3);
 	connect(setButton, SIGNAL(released()), this, SLOT(SlideSizeEdit()));
 
+	_currentUnits = new QComboBox(_scopeOptionDock);
+	_currentUnits->addItem("Millimeters");
+	_currentUnits->addItem("Pixels");
+	_currentUnits->addItem("Frames");
+	_userControlOptionBoxLayout->addWidget(_currentUnits, 13, 0);
 
 	_userControlOptionBox->setLayout(_userControlOptionBoxLayout);
 	 
@@ -252,9 +259,9 @@ void MainWindow::_buildMenuBar()
 
 void MainWindow::_buildEditObjectivesWindow()
 {
-	_editObjectivesWindow = new EditObjectivesWidget(_objectives);
-	_editObjectivesWindow->hide();
-	connect(_editObjectivesAction, SIGNAL(triggered()), _editObjectivesWindow, SLOT(show()));
+	//_editObjectivesWindow = new EditObjectivesWidget(_objectives);
+	//_editObjectivesWindow->hide();
+	//connect(_editObjectivesAction, SIGNAL(triggered()), _editObjectivesWindow, SLOT(show()));
 
 }
 
@@ -313,6 +320,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		_onTraversalTimer();
 	}
+	else if (event->timerId() == _resetTimerID)
+	{
+		_onResetTimer();
+	}
 }
 
 void MainWindow::_onPositionTimer()
@@ -332,6 +343,31 @@ void MainWindow::_onPositionTimer()
 	_stageZoomLabel->setText(QString::number(_zoomLevel));
 }
 
+
+/*
+ * Function: _onTraversalTimer
+ * Author: Justin Jones HMC '15
+ * Description: _onTraversalTimer essentially represents a finite state machine for
+ *				traversal of a microscope slide. When the "Begin Traversal" button
+ *				on the UI is pressed, it activates a timer callback supported by QT
+ *				which continually calls this function at every idle moment. Previously,
+ *				this function was run with loops, but since this was using the main thread
+ *				no other information was updated (camImage, coordinate system, etc). To
+ *				avoid extensive threading this callback work around is used. This allows
+ *				information on the screen to update and allows for mouse clicks to occur.
+ *				
+ *				The code manipulates the microscope in a ox-plow pattern, going along a row 
+ *				until the end then dropping to the next row. At each X-Y coordinate, a stack
+ *				of images at different z-depths is captured (_MAXDEPTH images to be precise). 
+ *				Once a stack has been captured, it is sent to an Java ImageJ library to be
+ *				compressed into a focused image. Meanwhile, the scope proceeds to the next X-Y
+ *				coordinate. The image processing and capturing happen in parallel. The finite
+ *				state machine largely determines the state by the number of changes in the z-axis.
+ *				Upon completion, the function resets relevant member variables and cancels the
+ *				timer. There are a couple of Sleep commands that are used to allow the mechanical
+ *				movement to complete. The traversal completes over whatever number of pixels is
+ *				currently set as the slide size and has a progress bar to indicate status.	
+ */
 void MainWindow::_onTraversalTimer()
 {
 	double zoomX;
@@ -365,6 +401,7 @@ void MainWindow::_onTraversalTimer()
 			_zCount = 0;
 			_travRev = -1;
 			finished = true;
+			_progressBar->reset();
 		}
 		_stage->where(curX, curY);
 		noChangeInY = 0;
@@ -382,6 +419,11 @@ void MainWindow::_onTraversalTimer()
 			if (noChangeInY)
 			{
 				FocusImage();
+				if (_traverseCount % 3 == 0)
+				{
+					_resetTimerID = startTimer(5000);
+					killTimer(_traversalTimerID);
+				}
 				_traverseCount++;
 				ProgressUpdate();
 			}
@@ -448,6 +490,20 @@ void MainWindow::_onTraversalTimer()
 	}
 }
 
+
+void MainWindow::_onResetTimer()
+{
+	_traversalTimerID = startTimer(0);
+	killTimer(_resetTimerID);
+}
+
+
+/*
+ * Function: _onDebugTimer
+ * Author: Ravi Kumar HMC '14
+ * Description: This function relies on a QT signal to call back at every idle moment and
+ *				updates the status bar message indicating the connection to the stage.
+ */
 void MainWindow::_onDebugTimer()
 {
 	if (_stage->is_connected())
@@ -456,6 +512,15 @@ void MainWindow::_onDebugTimer()
 		_statusBar->showMessage("Stage is disconnected!");
 }
 
+
+/*
+ * Function: keyPressEvent
+ * Author: Ravi Kumar HMC '14
+ * Description: This function relies on a QT signal to call back when a keyevent occurs.
+ *				It is only called upon press of a key and is sent to _handleArrowKeyPress.
+ *
+ * Parameters: event - this tells which key was pressed
+ */
 void MainWindow::keyPressEvent(QKeyEvent* event)
 {
 	//If it's an arrow key, send it off to that function
@@ -471,6 +536,15 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 	}
 }
 
+
+/*
+ * Function: keyReleaseEvent
+ * Author: Ravi Kumar HMC '14
+ * Description: This function relies on a QT signal to call back when a keyevent occurs.
+ *				It is only called upon release of a key and is sent to _handleArrowKeyRelease. 
+ *
+ * Parameters: event - this tells which key was released
+ */
 void MainWindow::keyReleaseEvent(QKeyEvent* event)
 {
 	//If it's an arrow key, send it off to that function
@@ -486,7 +560,20 @@ void MainWindow::keyReleaseEvent(QKeyEvent* event)
 	}
 }
 
-//This includes page up and page down for Z
+
+/*
+ * Function: _handleArrowKeyPress
+ * Author: Ravi Kumar HMC '14
+ * Last Edit: Justin Jones HMC '15
+ * Description: This function sets directional speed when an arrow key is pressed.
+ *			    Currently all key presses in any direction are incremental with 
+ *			    autorepeat turned off so that holding down a key does not continue movement.
+ *			    The function handles X, Y, and Z which are controlled respectively by the left,
+ *			    right, up, down arrow keysand page up/down.
+ *
+ * Parameters: event - this tells which key was pressed so that the function knows which
+ *					   directional speed needs to be set
+ */
 void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 {
 	double curX;
@@ -554,11 +641,24 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	}
 }
 
-//This includes page up and page down for Z
+
+/*
+ * Function: _handleArrowKeyRelease
+ * Author: Ravi Kumar HMC '14
+ * Last Edit: Justin Jones HMC '15
+ * Description: This function sets directional speed to 0 when an arrow key is released.
+ *
+ * Update: Possibly irrelevant since autorepeat is currently disabled for all directions
+ *		   due to an increase in precision over smaller movements. Justin Jones HMC '15
+ *
+ * TODO: FIXME
+ *
+ * Parameters: event - this tells which key was pressed so that the function knows which
+ *					   directional speed needs to be set to 0
+ */
 void MainWindow::_handleArrowKeyRelease(QKeyEvent* event)
 {
 	//Catch right and left arrow releases and ignore events sent when its held down
-	/*
 	if ((event->key() == Qt::Key_Right || event->key() == Qt::Key_Left)
 		&& event->isAutoRepeat() == false)
 	{
@@ -570,10 +670,24 @@ void MainWindow::_handleArrowKeyRelease(QKeyEvent* event)
 	{
 		_stage->set_speed_y(0);
 	}
-	*/
 	//Nothing happens on releasing Z control keys because it moves in increments instead of how long you hold it down for
 }
 
+
+/*
+ * Function: PreviewCallback
+ * Author: Ravi Kumar HMC '14
+ * Description: In camera toggle, a callback is created to update the image on the UI.
+ *				The callback returns to this function when it is signaled. This function
+ *				takes an image from the camera and posts it to the UI.
+ *
+ * Parameters: pContext - a void pointer that tells the function that "this" (the MainWindow
+ *						 class) called this function
+ *			  
+ *			  pData - this is the image data in a BYTE array
+ *
+ *			  dataLength - this is the length of the BYTE array
+ */
 //void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength, ULONG unused)
 void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 {
@@ -604,9 +718,15 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 	caller->_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
 
 	//std::cout << caller->_camImage->pixmap()->size().width() << std::endl;
-
 }
 
+
+/*
+ * Function: _previewCam
+ * Author: Ravi Kumar HMC '14
+ * Description: I am not sure that this function is used (Justin Jones). 
+ * TODO: FIXME
+ */
 void MainWindow::_previewCam()
 {
 	//get the image size from the camera
@@ -632,6 +752,14 @@ void MainWindow::_previewCam()
 	_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
 }
 
+
+/*
+ * Function: SetZoom
+ * Author: Ravi Kumar HMC '14
+ * Description: This function is called upon initialization the connection from the 
+ *				computer to the microscope camera. It can also be used to disconect.
+ *				It also spawns a camera frame callback that is used for the UI.
+ */
 void MainWindow::cameraToggle()
 {
 	if (_cam->is_connected()) //disconnect
@@ -677,6 +805,13 @@ void MainWindow::cameraToggle()
 	}
 }
 
+
+/*
+ * Function: stageToggle
+ * Author: Ravi Kumar HMC '14
+ * Description: This function is called upon initialization to connect the computer
+ *				controls to the microscope stage. It can also be used to disconect.
+ */
 void MainWindow::stageToggle()
 {
 	if (_stage->is_connected()) //disconnect
@@ -708,6 +843,28 @@ void MainWindow::stageToggle()
 	}
 }
 
+
+/*
+ * Function: SetZoom
+ * Author: Justin Jones HMC '15
+ * Description: This function is called to set the current zoom level information.
+ *				Depending on the current optical zoom of the microscope, there are
+ *				a different number of pixels. Most utility functions need to call
+ *				this to work correctly. If the zoom is not set correctly then the
+ *				function defaults to a value of 1 which is essentially nonsense.
+ *				This function also updates the approximate slide size (in pixels) 
+ *				when a zoom change occurs.
+ *
+ * Parameters: zoomX - this double is passed by reference and returns a conversion factor
+ *					   between pixels and mm for the x direction to be used by utility functions
+ *
+ *			   zoomY - this double is passed by reference and returns a conversion factor
+ *					   between pixels and mm for the y direction to be used by utility functions
+ *
+ *			   zoomChanged - this bool is set to false by default and is only passed by when the
+ *							 zoom level changes. SetZoom will then update the slide size to the
+ *							 approximate size of a slide at that zoom level.
+ */
 void MainWindow::SetZoom(double &zoomX, double &zoomY, bool zoomChanged)
 {
 	switch (_zoomLevel)
@@ -747,6 +904,15 @@ void MainWindow::SetZoom(double &zoomX, double &zoomY, bool zoomChanged)
 
 }
 
+
+/*
+ * Function: XYSpeedEdit
+ * Author: Ravi Kumar HMC '14
+ * Last Edit: Justin Jones HMC '15
+ * Description: This function is called when either the X or Y speed is edited
+ *				and updates the respective member variables for use in other
+ *				functions that rely on stage speed information
+ */
 void MainWindow::XYSpeedEdit()
 {
 	//Pull the text from the relevant lineedit and assign it to the variable! Ezpz
@@ -754,36 +920,98 @@ void MainWindow::XYSpeedEdit()
 	_stageYSpeed = _stageYSpeedEdit->text().toDouble();
 }
 
+
+/*
+* Function: ZIncrementEdit
+* Author: Ravi Kumar HMC '14
+* Description: This function is called when the z-axis speed is edited and
+*				updates the impacted member variable for use in other
+*				functions that rely on stage speed information
+*/
 void MainWindow::ZIncrementEdit()
 {
 	//Pull the text from the relevant lineedit and assign it to the variable! Ezpz
 	_stageZIncrement = _stageZIncrementEdit->text().toDouble();
 }
 
+
+/*
+ * Function: SlideSizeEdit
+ * Author: Justin Jones HMC '15
+ * Description: This function is called to parse the current slide size. Size
+ *				is determined by two inputs. First, the program must determine
+ *				the units. The user has a drop down option menu to choose between
+ *				millimeters, pixels, and frames (such as a 5x5 capture). From the
+ *				correct case, it reads from the line edit and converts the numbers
+ *				to pixels which is what the program understands. This function
+ *				is then able to update information for the progress bar. Right now
+ *				the switch statement works because there are only three units.
+ *				String->compare will declare if less than, equal to, or greater than.
+ *				Taking advantage of this, I chose to compare to the word that is
+ *				the alphabetic middle of the three.
+ */
 void MainWindow::SlideSizeEdit()
 {
+	std::string current = _currentUnits->currentText().toStdString();
+	int compare = current.compare("Millimeters");
+	int xEdit = _slideWidthEdit->text().toInt();
+	int yEdit = _slideHeightEdit->text().toInt();
 	double zoomX, zoomY;
-
 	SetZoom(zoomX, zoomY);
 
-	int numXImages = _slideWidthEdit->text().toInt();
-	int numYImages = _slideHeightEdit->text().toInt();
+	switch (compare)
+	{ 
+	case -1:	//Pixels
+		_totalImageCount = xEdit * yEdit;
+		_totalImageCount > 0 ? _totalImageCount : _totalImageCount = 1;
+		_progressBar->setRange(0, _totalImageCount);
 
-	_totalImageCount = numXImages * numYImages;
-	_totalImageCount > 0 ? _totalImageCount  : _totalImageCount = 1;
-
-	_xPixels = (_stageXSpeed / _mmX) * _camImageDisplayWidth * numXImages - _stageError;
-	_yPixels = (_stageYSpeed / _mmY) * _camImageDisplayHeight * numYImages - _stageError;
-
-	//_xPixels = _slideWidthEdit->text().toInt();
-	//_yPixels = _slideHeightEdit->text().toInt();
+		_xPixels = (_stageXSpeed / _mmX) * _camImageDisplayWidth * xEdit - _stageError;
+		_yPixels = (_stageYSpeed / _mmY) * _camImageDisplayHeight * yEdit - _stageError;
+		break;
+	case 0:		//Millimeters
+		_xPixels = zoomX * _slideWidthEdit->text().toDouble();
+		_yPixels = zoomY * _slideHeightEdit->text().toDouble();
+		_totalImageCount = _xPixels / (int)((_stageXSpeed / _mmX) * _camImageDisplayWidth) + 1;
+		_totalImageCount *= _yPixels / (int)((_stageYSpeed / _mmY) * _camImageDisplayHeight) + 1;
+		_totalImageCount > 0 ? _totalImageCount : _totalImageCount = 1;
+		_progressBar->setRange(0, _totalImageCount);
+		break;
+	case 1:		//Frames
+		_xPixels = xEdit;
+		_yPixels = yEdit;
+		_totalImageCount = _xPixels / (int) ((_stageXSpeed / _mmX) * _camImageDisplayWidth) + 1;
+		_totalImageCount *= _yPixels / (int) ((_stageYSpeed / _mmY) * _camImageDisplayHeight) + 1;
+		_totalImageCount > 0 ? _totalImageCount : _totalImageCount = 1;
+		_progressBar->setRange(0, _totalImageCount);
+		break;
+	}
 }
 
+
+/*
+ * Function: ProgressUpdate
+ * Author: Justin Jones HMC '15
+ * Description: By taking advantage of QT's built in progress bar, this function
+ *				only needs to tell the bar how many focused images have been 
+ *				captured in order to update the UI.
+ */
 void MainWindow::ProgressUpdate()
 {
-	_progressLabel->setText(QString::number(_traverseCount / _totalImageCount));
+	_progressBar->setValue(_traverseCount);
 }
 
+
+/*
+ * Function: SeekPosition
+ * Author: Justin Jones HMC '15
+ * Description: This function will move the stage to a desired set of coordinates.
+ *				The motivation behind this is to allow the geologists to take a
+ *				set of coordinates that other algorithms deliver or that they write
+ *				down and be able to return to that position for analysis. Possible
+ *				future work allows this function to take input directly from a 
+ *				crystal detection algorithm.
+ */
 void MainWindow::SeekPosition()
 {
 	_desiredX = _desiredXEdit->text().toDouble();
@@ -811,6 +1039,15 @@ void MainWindow::SeekPosition()
 
 }
 
+
+/*
+ * Function: SaveCurrentFrame
+ * Author: Justin Jones HMC '15
+ * Description: This function captures a single image of where the microscope is
+ *				currently looking. This can be done through the "Take Picture" button.
+ *				This function also serves as a support function to the traversal
+ *				algorithm which must capture 1000s of single images.  
+ */
 void MainWindow::SaveCurrentFrame()
 {
 	double zoomX;
@@ -861,6 +1098,15 @@ void MainWindow::SaveCurrentFrame()
 	delete[] folderPath;
 }
 
+
+/*
+ * Function: FocusImage
+ * Author: Justin Jones HMC '15
+ * Description: This function calls the ImageJ library that takes a folder of images
+ *				captured at a single X-Y location and compresses them into a single
+ *				in focus image. The majority of this function is parsing the position
+ *				into a string to send out with the system command call.
+ */
 void MainWindow::FocusImage()
 {
 	double zoomX;
@@ -868,45 +1114,87 @@ void MainWindow::FocusImage()
 	
 	SetZoom(zoomX, zoomY);
 
+	//Turn our current postion into a string for naming purposes
 	double curX;
 	double curY;
 	_stage->where(curX, curY);
 	int xPos = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
 	int yPos = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
-	int zPos = _zPos * 1000;
-	char* position = new char[72];
+	int zPos = _zPos * 1000;											//Currently using a magic number
+	char* position = new char[72];										//Using the maximum possible int length
 	itoa(xPos, position, 10 /*base 10*/);
-	strncpy(&position[strlen(position)], "_\0", 2);
+	strncpy(&position[strlen(position)], "_\0", 2 /*2 characters*/);
 	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
 
+	//Start with a common shared portion of the cmd and concatenate the postion for naming
 	char* commonCmd = "\"\"C:\\Users\\Ray Donelick\\Downloads\\ij148\\ImageJ\\ImageJ.exe\" -macro FocuserMacro.ijm ";
 	int startPathLen = strlen(commonCmd);
 	int posLen = strlen(position);
 	char* fullCmd = new char[startPathLen + posLen + 2];
 	strncpy(fullCmd, commonCmd, startPathLen);
-	strncpy(fullCmd + startPathLen, position, strlen(position) + 1);
-	strcpy(&fullCmd[strlen(fullCmd)], "\"\0");
+	strncpy(fullCmd + startPathLen, position, strlen(position) + 1);	//Add postion argument for imagej macro
+	strcpy(&fullCmd[strlen(fullCmd)], "\"\0");							//Add nullbyte to make the string readable
 
-	int okay = std::system(fullCmd);
-	if (!okay)
+	int okay = std::system(fullCmd);									//Send call out to imagej
+	if (!okay)															//Error checking
 		std::cerr << okay << " Everything is not Okay!" << std::endl;
 
 	delete[] position;
 	delete[] fullCmd;
 }
 
+
+/*
+ * Function: PythonCallout
+ * Author: Justin Jones HMC '15
+ * Description: This function calls the ImageJ library that takes a folder of images
+ *				captured at a single X-Y location and compresses them into a single
+ *				in focus image. The majority of this function is parsing the position
+ *				into a string to send out with the system command call.
+ */
+void MainWindow::PythonCallout()
+{
+	char* cmd = "C:\\Python27\\python.exe \"C:\\Users\\Ray Donelick\\Desktop\\t.py\"";
+	std::system(cmd);
+}
+
+
+/*
+ * Function: FindSlideOrigin
+ * Author: Justin Jones HMC '15
+ * Description: This function calls the ImageJ library that takes a folder of images
+ *				captured at a single X-Y location and compresses them into a single
+ * 				in focus image. The majority of this function is parsing the position
+ *				into a string to send out with the system command call.
+ */
 void MainWindow::FindSlideOrigin()
 {
 	_stage->where(_xOffset, _yOffset, _zOffset);
 	_zPos = 0;
 }
 
+
+/*
+ * Function: SlideTraversal
+ * Author: Justin Jones HMC '15
+ * Description: This function calls the ImageJ library that takes a folder of images
+ *				captured at a single X-Y location and compresses them into a single
+ * 				in focus image. The majority of this function is parsing the position
+ *				into a string to send out with the system command call.
+ */
 void MainWindow::SlideTraversal()
 {
 	_traversalTimerID = startTimer(0);
 	_zPos = 0;
 }
 
+
+/*
+ * Function: UpdateZoom10
+ * Author: Justin Jones HMC '15
+ * Description: This function is connected to a UI button and lets the user update
+ *				the current optical zoom.
+ */
 void MainWindow::UpdateZoom10()
 {
 	double x, y;
@@ -914,6 +1202,13 @@ void MainWindow::UpdateZoom10()
 	SetZoom(x, y, true);
 }
 
+
+/*
+* Function: UpdateZoom20
+* Author: Justin Jones HMC '15
+* Description: This function is connected to a UI button and lets the user update
+*				the current optical zoom.
+*/
 void MainWindow::UpdateZoom20()
 {
 	double x, y;
@@ -921,6 +1216,13 @@ void MainWindow::UpdateZoom20()
 	SetZoom(x, y, true);
 }
 
+
+/*
+* Function: UpdateZoom40
+* Author: Justin Jones HMC '15
+* Description: This function is connected to a UI button and lets the user update
+*				the current optical zoom.
+*/
 void MainWindow::UpdateZoom40()
 {
 	double x, y;

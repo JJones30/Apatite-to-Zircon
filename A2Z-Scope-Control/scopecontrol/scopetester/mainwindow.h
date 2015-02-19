@@ -19,9 +19,10 @@
 
 //Qt stuff in stdafx
 #include <QtCore/qobject.h>
+#include <QProgressBar>
 //Qt-related stuff:
 #include "status_indicator.h"
-#include "editobjectives_window.h"
+//#include "editobjectives_window.h"
 
 //other
 #include <string>
@@ -95,6 +96,7 @@ private:
 	void _onDebugTimer(); //What to do when our camera timer ticks (AKA get a frame and display it in _camImage)
 	void _onPositionTimer(); //How often to update coordinates system
 	void _onTraversalTimer(); //Callback to traversal algorithm
+	void _onResetTimer(); //Callback to traversal algorithm
 
 	//Key handling related
 	void _handleArrowKeyPress(QKeyEvent* event);
@@ -109,6 +111,7 @@ private:
 	void FocusImage();
 	void ProgressUpdate();
 	void SetZoom(double &zoomX, double &zoomY, bool zoomChanged = false);
+	void PythonCallout();
 
 	int _objectiveAndLightingToIndex(int objectiveIndex, bool lighting);
 
@@ -151,8 +154,11 @@ private:
 	QGroupBox* _scopeOptionBox;
 	QGridLayout* _scopeOptionBoxLayout;
 	QComboBox* _currentObjectiveEdit;
+	QComboBox* _currentUnits;
 
 	QPushButton* _takePicButton;
+
+	QProgressBar* _progressBar;
 
 	QLabel* _stageXPosLabel;
 	QLabel* _stageYPosLabel;
@@ -162,7 +168,7 @@ private:
 
 
 	//Window for editing objectives
-	EditObjectivesWidget* _editObjectivesWindow;
+//	EditObjectivesWidget* _editObjectivesWindow;
 
 	//Big important things
 	sc::StageBase* _stage;
@@ -176,6 +182,7 @@ private:
 	int _debugTimerID; //the timer ID for the camera timer
 	int _positionTimerID; //the timer ID for the coordinates update timer
 	int _traversalTimerID;
+	int _resetTimerID;
 	
 	//Stage related things
 	//Keyboard control stuff
@@ -199,7 +206,7 @@ private:
 	int _totalImageCount = 1;
 	const double VERY_SMALL = 0.000000001;
 	bool _manual = false;
-	const int _MAXDEPTH = 15;
+	const int _MAXDEPTH = 11;
 
 	//GUI related things
 	int _camImageDisplayWidth = 1600;

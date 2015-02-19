@@ -88,9 +88,9 @@ int EditObjectivesWidget::_objectiveAndLightingToIndex(int objectiveIndex, bool 
 
 void EditObjectivesWidget::showNewObjectivesWindow()
 {
-	_newObjectiveWidget = new AddNewObjectiveWidget(this);
+	//_newObjectiveWidget = new AddNewObjectiveWidget(this);
 	//connect(_newObjectiveWidget, )
-	_newObjectiveWidget->show();
+	//_newObjectiveWidget->show();
 }
 
 

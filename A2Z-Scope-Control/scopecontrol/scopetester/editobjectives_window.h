@@ -3,7 +3,7 @@
 #pragma once
 
 #include "objective.h"
-#include "addnewobjectivewidget.h"
+//#include "addnewobjectivewidget.h"
 
 #include <vector>
 
@@ -22,7 +22,7 @@ public slots:
 	void addNewObjective(double power);
 
 private:
-	AddNewObjectiveWidget* _newObjectiveWidget;
+	//AddNewObjectiveWidget* _newObjectiveWidget;
 
 	std::vector<Objective> _objectives;
 
