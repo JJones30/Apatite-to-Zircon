@@ -1,7 +1,5 @@
 //Main window class source file
 
-#include "stdafx.h"
-
 #include "mainwindow.h"
 
 MainWindow::MainWindow()
@@ -22,6 +20,8 @@ MainWindow::MainWindow()
 
 	//Set the focus to the central widget
 	centralWidget()->setFocus();
+
+	_stage->where(_xOffset, _yOffset, _zOffset);
 }
 
 MainWindow::~MainWindow()
@@ -35,6 +35,14 @@ MainWindow::~MainWindow()
 	if (_stage->is_connected())
 	{
 		_stage->close();
+	}
+	if (_enableVirtualScope){
+		delete(_stage);
+	}
+	else
+	{
+		delete(_stage);
+		delete(_cam);
 	}
 }
 
@@ -111,12 +119,17 @@ void MainWindow::_buildUserControlOptionBox()
 	_userControlOptionBoxLayout = new QGridLayout;
 	_userControlOptionBoxLayout->setSizeConstraint(QLayout::SetMinimumSize); //this doesn't currently do much :(
 
+	//X and Y speed controls
 	QLabel* stageXYSpeedLabel = new QLabel("XY speed (mm/sec)");
-	_stageXYSpeedEdit = new QLineEdit(QString::number(_stageXYSpeed));
+	_stageXSpeedEdit = new QLineEdit(QString::number(_stageXSpeed));
+	_stageYSpeedEdit = new QLineEdit(QString::number(_stageYSpeed));
 	_userControlOptionBoxLayout->addWidget(stageXYSpeedLabel, 0, 0);
-	_userControlOptionBoxLayout->addWidget(_stageXYSpeedEdit, 0, 1);
-	connect(_stageXYSpeedEdit, SIGNAL(editingFinished()), this, SLOT(XYSpeedEdit()));
+	_userControlOptionBoxLayout->addWidget(_stageXSpeedEdit, 0, 1);
+	_userControlOptionBoxLayout->addWidget(_stageYSpeedEdit, 0, 2);
+	connect(_stageXSpeedEdit, SIGNAL(editingFinished()), this, SLOT(XYSpeedEdit()));
+	connect(_stageYSpeedEdit, SIGNAL(editingFinished()), this, SLOT(XYSpeedEdit()));
 
+	//Z speed controls
 	QLabel* stageZIncrementLabel = new QLabel("Z speed (mm/keypress)");
 	_stageZIncrementEdit = new QLineEdit(QString::number(_stageZIncrement));
 	_userControlOptionBoxLayout->addWidget(stageZIncrementLabel, 1, 0);
@@ -124,32 +137,79 @@ void MainWindow::_buildUserControlOptionBox()
 	connect(_stageZIncrementEdit, SIGNAL(editingFinished()), this, SLOT(ZIncrementEdit()));
 
 	//Current Coordinates
-	QLabel* xPosLabel = new QLabel("Current xy-pos: ");
-	_stageXPosLabel = new QLabel(QString::number(_xPos));
-	_stageYPosLabel = new QLabel(QString::number(_yPos));
+	QLabel* xPosLabel = new QLabel("Current xyz-pos: ");
+	_stageXPosLabel = new QLabel(QString::number(0));
+	_stageYPosLabel = new QLabel(QString::number(0));
+	_stageZPosLabel = new QLabel(QString::number(0));
 	_userControlOptionBoxLayout->addWidget(xPosLabel, 2, 0);
 	_userControlOptionBoxLayout->addWidget(_stageXPosLabel, 2, 1);
 	_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2, 2);
+	_userControlOptionBoxLayout->addWidget(_stageZPosLabel, 2, 3);
 
-	//QLabel* yPosLabel = new QLabel("Current y-pos: ");
-	//_stageYPosLabel = new QLabel(QString::number(_yPos));
-	//_userControlOptionBoxLayout->addWidget(yPosLabel, 2.5, 0);
-	//_userControlOptionBoxLayout->addWidget(_stageYPosLabel, 2.5, 1);
+	//A label to keep track of current optical zoom
+	QLabel* zoomLevelLabel = new QLabel("Current Zoom Level: ");
+	_stageZoomLabel = new QLabel(QString::number(1));
+	_userControlOptionBoxLayout->addWidget(zoomLevelLabel, 3, 0);
+	_userControlOptionBoxLayout->addWidget(_stageZoomLabel, 3, 1);
+
+	//Create three buttons to specify optical zoom
+	QPushButton* firstZoom = new QPushButton("Zoom 10x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(firstZoom, 4, 0);
+	connect(firstZoom, SIGNAL(released()), this, SLOT(UpdateZoom10()));
+
+	QPushButton* secondZoom = new QPushButton("Zoom 20x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(secondZoom, 5, 0);
+	connect(secondZoom, SIGNAL(released()), this, SLOT(UpdateZoom20()));
+
+	QPushButton* thirdZoom = new QPushButton("Zoom 40x", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(thirdZoom, 6, 0);
+	connect(thirdZoom, SIGNAL(released()), this, SLOT(UpdateZoom40()));
+
+	//The beginning of automation utilities
+	QLabel* utilityLabel = new QLabel("Utility Buttons");
+	_userControlOptionBoxLayout->addWidget(utilityLabel, 7, 0);
 
 	//Add take picture button
 	_takePicButton = new QPushButton("Take Picture!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 4, 0);
+	_userControlOptionBoxLayout->addWidget(_takePicButton, 8, 0);
 	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
 
-	//Add take picture button
-	_takePicButton = new QPushButton("Find me a corner!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 5, 0);
-	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
+	//A button to zero coordinates to the current position
+	QPushButton* zeroButton = new QPushButton("Zero Coordinates!", _scopeOptionDock);
+	_userControlOptionBoxLayout->addWidget(zeroButton, 9, 0);
+	connect(zeroButton, SIGNAL(released()), this, SLOT(FindSlideOrigin()));
 
-	//Add take picture button
-	_takePicButton = new QPushButton("Begin Stitching!", _scopeOptionDock);
-	_userControlOptionBoxLayout->addWidget(_takePicButton, 6, 0);
-	connect(_takePicButton, SIGNAL(released()), this, SLOT(SaveCurrentFrame()));
+	//A button to begin the traversal algorithm
+	QPushButton* traverseButton = new QPushButton("Begin Traversal!", _scopeOptionDock);
+	QLabel* completeLabel = new QLabel("% Complete: ");
+	QLabel* _progressLabel = new QLabel("N/A");
+	_userControlOptionBoxLayout->addWidget(traverseButton, 10, 0);
+	_userControlOptionBoxLayout->addWidget(completeLabel, 10, 1);
+	_userControlOptionBoxLayout->addWidget(_progressLabel, 10, 2);
+	connect(traverseButton, SIGNAL(released()), this, SLOT(SlideTraversal()));
+
+	//Adds an interface for automatic navigation to a specified coordinate
+	QLabel* desiredX = new QLabel("Desired X/Y");
+	QPushButton* goButton = new QPushButton("Go To", _scopeOptionDock);
+	_desiredXEdit = new QLineEdit(QString::number(_desiredX));
+	_desiredYEdit = new QLineEdit(QString::number(_desiredY));
+	_userControlOptionBoxLayout->addWidget(desiredX, 11, 0);
+	_userControlOptionBoxLayout->addWidget(_desiredXEdit, 11, 1);
+	_userControlOptionBoxLayout->addWidget(_desiredYEdit, 11, 2);
+	_userControlOptionBoxLayout->addWidget(goButton, 11, 3);
+	connect(goButton, SIGNAL(released()), this, SLOT(SeekPosition()));
+
+	//Allows for dynamic sizing of the traversal algorithm
+	QLabel* stageWidthLabel = new QLabel("Slide width/height");
+	QPushButton* setButton = new QPushButton("Set", _scopeOptionDock);
+	_slideWidthEdit = new QLineEdit(QString::number(_xPixels));
+	_slideHeightEdit = new QLineEdit(QString::number(_yPixels));
+	_userControlOptionBoxLayout->addWidget(stageWidthLabel, 12, 0);
+	_userControlOptionBoxLayout->addWidget(_slideWidthEdit, 12, 1);
+	_userControlOptionBoxLayout->addWidget(_slideHeightEdit, 12, 2);
+	_userControlOptionBoxLayout->addWidget(setButton, 12, 3);
+	connect(setButton, SIGNAL(released()), this, SLOT(SlideSizeEdit()));
+
 
 	_userControlOptionBox->setLayout(_userControlOptionBoxLayout);
 	 
@@ -206,7 +266,7 @@ void MainWindow::_initializeScope()
 		//Do virtual scope things
 
 		//cout << "Initializing virtual scope..." << endl;
-		_stage = std::unique_ptr<sc::VirtualScope>(new sc::VirtualScope("virtual_config.xml"));
+		_stage = new sc::VirtualScope("virtual_config.xml");
 		//cout << "Virtual scope created!" << endl;
 		_postStatus("Virtual scope created.");
 	}
@@ -215,11 +275,11 @@ void MainWindow::_initializeScope()
 		//Do real scope things!
 
 		//Create the objects
-		_cam = std::unique_ptr<sc::LumeneraCamera>(new sc::LumeneraCamera(1));
+		_cam = new sc::LumeneraCamera(1);
 
-		_stage = std::unique_ptr<sc::StageController>(new sc::StageController("COM3",
+		_stage = new sc::StageController("COM3",
 			sc::STAGE_TYPE::ASI_MS2000,
-			"C:\\Users\\Ray Donelick\\Documents\\Visual Studio 2013\\Projects\\scopecontrol\\Debug\\asi_ms2000_config.txt"));
+			"C:\\Users\\Ray Donelick\\Documents\\Visual Studio 2013\\Projects\\scopecontrol\\Debug\\asi_ms2000_config.txt");
 
 		//Camera autoconnect
 		if (_camAutoconnect)
@@ -249,20 +309,143 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		_onPositionTimer();
 	}
+	else if (event->timerId() == _traversalTimerID)
+	{
+		_onTraversalTimer();
+	}
 }
 
 void MainWindow::_onPositionTimer()
 {
-	//Fix double precision to look correct
-	if (((_xPos > 0) && (_xPos < VERY_SMALL)) || ((_xPos < 0) && (_xPos > -VERY_SMALL)))
-		_xPos = 0;
+	double zoomX;
+	double zoomY;
+	
+	SetZoom(zoomX, zoomY);
 
-	if (((_yPos > 0) && (_yPos < VERY_SMALL)) || ((_yPos < 0) && (_yPos > -VERY_SMALL)))
-		_yPos = 0;
-
+	double x;
+	double y;
 	//Update current coordinates
-	_stageXPosLabel->setText(QString::number(_xPos));
-	_stageYPosLabel->setText(QString::number(_yPos));
+	_stage->where(x, y);
+	_stageXPosLabel->setText(QString::number((x - _xOffset) / -MM_TO_STAGE_UNITS * zoomX));
+	_stageYPosLabel->setText(QString::number((y - _yOffset) / MM_TO_STAGE_UNITS * zoomY));
+	_stageZPosLabel->setText(QString::number(_zPos * _stageZIncrement * 100));
+	_stageZoomLabel->setText(QString::number(_zoomLevel));
+}
+
+void MainWindow::_onTraversalTimer()
+{
+	double zoomX;
+	double zoomY;
+	double curX;
+	double curY;
+	double curZ;
+	bool finished = false;
+	int zoomChange = 0;
+	int noChangeInY = 1;
+
+	SetZoom(zoomX, zoomY);
+
+	_stage->where(curX, curY);
+	int x = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
+	int y = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+	if (((x > _xPixels) || (x < -_stageError/2)) && (_zCount % 	_MAXDEPTH == 1 && _zPos == 0))
+	{
+		if (!_stage->move(curX + 1 * 0.002 * -1 * MM_TO_STAGE_UNITS, curY + 1 * _stageYSpeed * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+
+		Sleep(300);
+		_travRev *= -1;
+		_zCount--;
+		_stage->where(curX, curY);
+		x = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
+		y = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+		if (y >= _yPixels)
+		{
+			killTimer(_traversalTimerID);
+			_zCount = 0;
+			_travRev = -1;
+			finished = true;
+		}
+		_stage->where(curX, curY);
+		noChangeInY = 0;
+	}
+	if (!finished)
+	{
+		if (_zCount == 0)
+		{
+			SaveCurrentFrame();
+			++_zCount;
+		}
+
+		if (_zCount % _MAXDEPTH == 0 && _zPos == 0)
+		{
+			if (noChangeInY)
+			{
+				FocusImage();
+				_traverseCount++;
+				ProgressUpdate();
+			}
+			else
+			{
+				noChangeInY = 1;
+			}
+
+			if (!_stage->move(curX + 1 * _stageXSpeed * _travRev * MM_TO_STAGE_UNITS, curY))
+				_postStatus("Failed to move stage!");
+
+			Sleep(300);
+			_stage->move(_zOffset);
+			Sleep(300);
+			SaveCurrentFrame();
+			++_zCount;
+		}
+		else if (_zCount % _MAXDEPTH < (_MAXDEPTH/2 + 1) && _zCount % _MAXDEPTH > 0)
+		{
+			_stage->where(curZ);
+
+			if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos++;
+
+			Sleep(300);
+			SaveCurrentFrame();
+			++_zCount;
+		}
+		else if (_zPos != 0 && _zCount % _MAXDEPTH == (_MAXDEPTH/2 + 1))
+		{
+			_stage->where(curZ);
+
+			if (!_stage->move(curZ - 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos--;
+			Sleep(300);
+		}
+		else if (_zCount % _MAXDEPTH > _MAXDEPTH/2)
+		{
+			_stage->where(curZ);
+
+			if (!_stage->move(curZ - 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos--;
+
+			Sleep(300);
+			SaveCurrentFrame();
+			++_zCount;
+		}
+		else
+		{
+			_stage->where(curZ);
+
+			if (!_stage->move(curZ + 1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			else
+				_zPos++;
+			Sleep(300);
+		}
+	}
 }
 
 void MainWindow::_onDebugTimer()
@@ -312,37 +495,29 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 	//Catch right arrow presses and ignore events sent when its held down
 	if (event->key() == Qt::Key_Right && event->isAutoRepeat() == false)
 	{
-		if (!_stage->move(curX + 1 * _stageXYSpeed * _reverseX * MM_TO_STAGE_UNITS, curY))
+		if (!_stage->move(curX + 1 * _stageXSpeed * _reverseX * MM_TO_STAGE_UNITS, curY))
 			_postStatus("Failed to move stage!");
-		else
-			_xPos += _stageXYSpeed;
 	}
 
 	//Catch left arrow presses and ignore events sent when its held down
 	else if (event->key() == Qt::Key_Left && event->isAutoRepeat() == false)
 	{
-		if (!_stage->move(curX + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS, curY))
+		if (!_stage->move(curX + 1 * _stageXSpeed * MM_TO_STAGE_UNITS, curY))
 			_postStatus("Failed to move stage!");
-		else
-			_xPos += _stageXYSpeed * _reverseX;
 	}
 
 	//Catch up arrow presses and ignore events sent when its held down
 	else if (event->key() == Qt::Key_Up && event->isAutoRepeat() == false)
 	{
-		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * _reverseY * MM_TO_STAGE_UNITS))
+		if (!_stage->move(curX, curY + 1 * _stageYSpeed * _reverseY * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed * _reverseY;
 	}
 
 	//Catch down arrow presses and ignore events sent when its held down
 	else if (event->key() == Qt::Key_Down && event->isAutoRepeat() == false)
 	{
-		if (!_stage->move(curX, curY + 1 * _stageXYSpeed * MM_TO_STAGE_UNITS))
+		if (!_stage->move(curX, curY + 1 * _stageYSpeed * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
-		else
-			_yPos += _stageXYSpeed;
 	}
 
 	//Catch page up presses and ignore events sent when its held down
@@ -356,6 +531,10 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		{
 			_postStatus("Failed to move stage!");
 		}
+		else
+		{
+			_zPos++;
+		}
 	}
 
 	//Catch page down presses and ignore events sent when its held down
@@ -367,6 +546,10 @@ void MainWindow::_handleArrowKeyPress(QKeyEvent* event)
 		if (!_stage->move(curZ + -1 * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 		{
 			_postStatus("Failed to move stage!");
+		}
+		else
+		{
+			_zPos--;
 		}
 	}
 }
@@ -424,6 +607,31 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 
 }
 
+void MainWindow::_previewCam()
+{
+	//get the image size from the camera
+	int imageWidth, imageHeight;
+	_cam->get_image_size(imageWidth, imageHeight);
+
+	//outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, data);
+
+	cv::Mat rawFrame;
+	cv::Mat frame;
+
+	_cam->getFrame(rawFrame);
+
+	//Resize the frame to the desired size
+
+	//std::cout << "Resizing frame..." << std::endl;
+	cv::resize(rawFrame, frame, cv::Size(_camImageDisplayWidth, _camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+	//std::cout << "Resized!" << std::endl;
+
+	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
+
+	//Convert it to a QImage and put it in _camImage
+	_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
+}
+
 void MainWindow::cameraToggle()
 {
 	if (_cam->is_connected()) //disconnect
@@ -454,6 +662,7 @@ void MainWindow::cameraToggle()
 				//std::cerr << "Failed to add video frame callback!" << std::endl; //TODO: add a log print
 				_postStatus("Failed to add video frame callback!");
 			}
+
 
 			if (!_cam->startVideoStream())
 			{
@@ -499,10 +708,50 @@ void MainWindow::stageToggle()
 	}
 }
 
+void MainWindow::SetZoom(double &zoomX, double &zoomY, bool zoomChanged)
+{
+	switch (_zoomLevel)
+	{
+	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y, _mmX = MM_40X_X, _mmY = MM_40X_Y; 
+		if (zoomChanged)
+		{
+			_xPixels = 132000; _yPixels = 134000;
+		}
+		break;
+	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y, _mmX = MM_20X_X, _mmY = MM_20X_Y;
+		if (zoomChanged)
+		{
+			_xPixels = 85000; _yPixels = 87000;
+		}
+		break;
+	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y, _mmX = MM_10X_X, _mmY = MM_10X_Y;
+		if (zoomChanged)
+		{
+			_xPixels = 32000; _yPixels = 34000;
+		}
+		break;
+	default: zoomX = 1; zoomY = 1;
+	}
+
+	/*
+	//Fix double precision to look correct
+	if (((_xPos > 0) && (_xPos < VERY_SMALL)) || ((_xPos < 0) && (_xPos > -VERY_SMALL)))
+		_xPos = 0;
+
+	if (((_yPos > 0) && (_yPos < VERY_SMALL)) || ((_yPos < 0) && (_yPos > -VERY_SMALL)))
+		_yPos = 0;
+
+	if (((_zPos > 0) && (_zPos < VERY_SMALL)) || ((_zPos < 0) && (_zPos > -VERY_SMALL)))
+		_zPos = 0;
+	*/
+
+}
+
 void MainWindow::XYSpeedEdit()
 {
 	//Pull the text from the relevant lineedit and assign it to the variable! Ezpz
-	_stageXYSpeed = _stageXYSpeedEdit->text().toDouble();
+	_stageXSpeed = _stageXSpeedEdit->text().toDouble();
+	_stageYSpeed = _stageYSpeedEdit->text().toDouble();
 }
 
 void MainWindow::ZIncrementEdit()
@@ -511,40 +760,172 @@ void MainWindow::ZIncrementEdit()
 	_stageZIncrement = _stageZIncrementEdit->text().toDouble();
 }
 
+void MainWindow::SlideSizeEdit()
+{
+	double zoomX, zoomY;
+
+	SetZoom(zoomX, zoomY);
+
+	int numXImages = _slideWidthEdit->text().toInt();
+	int numYImages = _slideHeightEdit->text().toInt();
+
+	_totalImageCount = numXImages * numYImages;
+	_totalImageCount > 0 ? _totalImageCount  : _totalImageCount = 1;
+
+	_xPixels = (_stageXSpeed / _mmX) * _camImageDisplayWidth * numXImages - _stageError;
+	_yPixels = (_stageYSpeed / _mmY) * _camImageDisplayHeight * numYImages - _stageError;
+
+	//_xPixels = _slideWidthEdit->text().toInt();
+	//_yPixels = _slideHeightEdit->text().toInt();
+}
+
+void MainWindow::ProgressUpdate()
+{
+	_progressLabel->setText(QString::number(_traverseCount / _totalImageCount));
+}
+
+void MainWindow::SeekPosition()
+{
+	_desiredX = _desiredXEdit->text().toDouble();
+	_desiredY = _desiredYEdit->text().toDouble();
+	double curX;
+	double curY;
+	double zoomX;
+	double zoomY;
+
+	SetZoom(zoomX, zoomY);
+
+	_desiredX /= zoomX;
+	_desiredY /= zoomY;
+
+
+	_stage->where(curX, curY);
+	if (!_stage->move(_xOffset + _desiredX * MM_TO_STAGE_UNITS * -1, curY))
+		_postStatus("Failed to move stage!");
+
+	Sleep(2500);
+
+	_stage->where(curX, curY);
+	if (!_stage->move(curX, _yOffset +_desiredY * MM_TO_STAGE_UNITS))
+		_postStatus("Failed to move stage!");
+
+}
+
 void MainWindow::SaveCurrentFrame()
 {
-	cv::Mat outImage;
-	SYSTEMTIME st;
-	GetSystemTime(&st);
+	double zoomX;
+	double zoomY;
+	
+	SetZoom(zoomX, zoomY);
 
-	//Create time string for picture name
-	char* timeStamp = new char[96]; //96 is 32*3 or 3 ints
-	itoa(st.wHour, timeStamp, 10);
-	itoa(st.wMinute, &timeStamp[strlen(timeStamp)], 10 /*base 10*/);
-	itoa(st.wSecond, &timeStamp[strlen(timeStamp)], 10 /*base 10*/);
+	//Create position string for picture name
+	double curX;
+	double curY;
+	_stage->where(curX, curY);
+	int xPos = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
+	int yPos = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+	int zPos = _zPos * _stageZIncrement * 1000;
+	char* position = new char[72];
+	itoa(xPos, position, 10 /*base 10*/);
+	strncpy(&position[strlen(position)], "_\0", 2);
+	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
 
 	//Create save path
-	char* folderPath = "C:/Users/Ray Donelick/Pictures/Test Images";
-	int folderlen = strlen(folderPath);
-	int timelen = strlen(timeStamp);
-	char* filename = new char[folderlen + timelen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
-	strncpy(filename, folderPath, folderlen);
-	strcpy(filename + folderlen, "/");
-	strncpy(filename + folderlen + 1, timeStamp, timelen);
-	strcpy(filename + folderlen + timelen + 1, ".jpg\0");
+	char* startPath = "C:\\Users\\Ray Donelick\\Pictures\\Test Images\\";
+	int startPathLen = strlen(startPath);
+	int oldposLen = strlen(position);
+	char* folderPath = new char[startPathLen + oldposLen + 1];
+	strncpy(folderPath, startPath, startPathLen);
+	strncpy(folderPath + startPathLen, position, strlen(position));
+	strncpy(&position[oldposLen], "_\0", 2);
+	itoa(zPos, &position[strlen(position)], 10 /*base 10*/);
+	int newposLen = strlen(position);
+	char* filename = new char[startPathLen + oldposLen + newposLen + 1 + 4 + 1]; //1 for '/', 4 for '.jpg', 1 for '\0'
+	strncpy(filename, folderPath, startPathLen + oldposLen);
+	strcpy(filename + startPathLen + oldposLen, "\0");
+	const char* dir_path = filename;
+	boost::filesystem::path dir(dir_path);
+	boost::filesystem::create_directory(dir);
+	strcpy(filename + startPathLen + oldposLen, "\\\0");
+	strncpy(filename + startPathLen + oldposLen + 1, position, newposLen);
+	strcpy(filename + startPathLen + oldposLen + 1 + newposLen, ".jpg\0");
 
 	//Write out picture
-	_cam->getFrame(outImage);
-	cv::imwrite(filename, outImage);
+	_cam->getFrame(_outImage);
+	cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
+	cv::imwrite(filename, _outImage);
 
 	//Manage memory
 	delete[] filename;
-	delete[] timeStamp;
+	delete[] position;
+	delete[] folderPath;
+}
+
+void MainWindow::FocusImage()
+{
+	double zoomX;
+	double zoomY;
+	
+	SetZoom(zoomX, zoomY);
+
+	double curX;
+	double curY;
+	_stage->where(curX, curY);
+	int xPos = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
+	int yPos = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+	int zPos = _zPos * 1000;
+	char* position = new char[72];
+	itoa(xPos, position, 10 /*base 10*/);
+	strncpy(&position[strlen(position)], "_\0", 2);
+	itoa(yPos, &position[strlen(position)], 10 /*base 10*/);
+
+	char* commonCmd = "\"\"C:\\Users\\Ray Donelick\\Downloads\\ij148\\ImageJ\\ImageJ.exe\" -macro FocuserMacro.ijm ";
+	int startPathLen = strlen(commonCmd);
+	int posLen = strlen(position);
+	char* fullCmd = new char[startPathLen + posLen + 2];
+	strncpy(fullCmd, commonCmd, startPathLen);
+	strncpy(fullCmd + startPathLen, position, strlen(position) + 1);
+	strcpy(&fullCmd[strlen(fullCmd)], "\"\0");
+
+	int okay = std::system(fullCmd);
+	if (!okay)
+		std::cerr << okay << " Everything is not Okay!" << std::endl;
+
+	delete[] position;
+	delete[] fullCmd;
 }
 
 void MainWindow::FindSlideOrigin()
 {
+	_stage->where(_xOffset, _yOffset, _zOffset);
+	_zPos = 0;
+}
 
+void MainWindow::SlideTraversal()
+{
+	_traversalTimerID = startTimer(0);
+	_zPos = 0;
+}
+
+void MainWindow::UpdateZoom10()
+{
+	double x, y;
+	_zoomLevel = ZOOM_10;
+	SetZoom(x, y, true);
+}
+
+void MainWindow::UpdateZoom20()
+{
+	double x, y;
+	_zoomLevel = ZOOM_20;
+	SetZoom(x, y, true);
+}
+
+void MainWindow::UpdateZoom40()
+{
+	double x, y;
+	_zoomLevel = ZOOM_40;
+	SetZoom(x, y, true);
 }
 
 void MainWindow::updateObjectives(std::vector<Objective> newObjectives)

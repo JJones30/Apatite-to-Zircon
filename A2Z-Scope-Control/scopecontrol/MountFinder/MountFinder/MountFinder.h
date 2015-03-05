@@ -24,10 +24,10 @@ bool is_edge(const cv::Mat& frame, int& nextX, int& nextY, bool& is_corner, int&
 
 void check_tests(const cv::Mat& frame);
 
-void on_x(int, void*);
+void on_x(int, void*); 
 
 void on_y(int, void*);
 
 void on_corner_index(int, void*);
 
-void run_corner_detection();
+void run_corner_detection(sc::StageBase* stage, sc::CameraBase* cam);

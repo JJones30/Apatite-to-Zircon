@@ -45,6 +45,14 @@ namespace sc
 				return false;
 			}
 
+			INT iSize = _lffFormat.width * _lffFormat.height;
+			if (_lsSettings.format.pixelFormat == LUCAM_PF_16)
+				iSize *= 2;
+
+			m_pbRawFrame = new BYTE[iSize];
+			m_pbMonoFrame = new BYTE[iSize * 3];
+			m_pbColorFrame = new BYTE[iSize * 3];
+
 			//TODO Setup all the settings or load a settings file. Look more at colormonocapturedlg lines ~300
 
 			//All our class settings
@@ -70,6 +78,10 @@ namespace sc
 			_lffFormat.width = 0;
 
 			_previewCallbackRegNumber = -1;
+
+			delete(m_pbRawFrame);
+			delete(m_pbMonoFrame);
+			delete(m_pbColorFrame);
 
 			return true;
 		}
@@ -160,28 +172,16 @@ namespace sc
 
 		//CString csTemp;
 		//FLOAT fClockSpeed;
-		INT iSize;
 		//int iPixelFormat;
 
 		//BYTE bTemp;
 		//USHORT usTemp;
 
-		BYTE* m_pbRawFrame = NULL;
-		BYTE* m_pbMonoFrame = NULL;
-		BYTE* m_pbColorFrame = NULL;
+
 
 		
 
-		iSize = _lffFormat.width * _lffFormat.height;
-		if (_lsSettings.format.pixelFormat == LUCAM_PF_16)
-			iSize *= 2;
 
-		/*if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
-		if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
-		if (m_pbColorFrame != NULL) delete (m_pbColorFrame);*/
-		m_pbRawFrame = new BYTE[iSize];
-		m_pbMonoFrame = new BYTE[iSize * 3];
-		m_pbColorFrame = new BYTE[iSize * 3];
 		if ((m_pbRawFrame == NULL) || (m_pbMonoFrame == NULL) || (m_pbColorFrame == NULL))
 		{
 			std::cerr << "Failed to allocate memory for frame buffer." << std::endl;
@@ -330,6 +330,104 @@ namespace sc
 		//Load the image into the out mat
 		outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, m_pbColorFrame);
 
+		return true;
+	}
+
+	bool LumeneraCamera::getRawFrame(BYTE* rawFrame)
+	{
+		//If we're not connected bail
+		if (!_isConnected)
+		{
+			return false;
+		}
+
+		//CString csTemp;
+		//FLOAT fClockSpeed;
+		INT iSize;
+		//int iPixelFormat;
+
+		//BYTE bTemp;
+		//USHORT usTemp;
+
+		BYTE* m_pbRawFrame = NULL;
+		BYTE* m_pbMonoFrame = NULL;
+		BYTE* m_pbColorFrame = NULL;
+
+
+
+		iSize = _lffFormat.width * _lffFormat.height;
+		if (_lsSettings.format.pixelFormat == LUCAM_PF_16)
+			iSize *= 2;
+
+		/*if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
+		if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
+		if (m_pbColorFrame != NULL) delete (m_pbColorFrame);*/
+		m_pbRawFrame = new BYTE[iSize];
+		m_pbMonoFrame = new BYTE[iSize * 3];
+		m_pbColorFrame = new BYTE[iSize * 3];
+		if ((m_pbRawFrame == NULL) || (m_pbMonoFrame == NULL) || (m_pbColorFrame == NULL))
+		{
+			std::cerr << "Failed to allocate memory for frame buffer." << std::endl;
+			if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
+			m_pbRawFrame = NULL;
+			if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
+			m_pbMonoFrame = NULL;
+			if (m_pbColorFrame != NULL) delete (m_pbColorFrame);
+			m_pbColorFrame = NULL;
+			return false;
+		}
+
+		//fClockSpeed = (FLOAT)(GetCheckedRadioButton(IDC_RADIO_SCLOCK_FAST, IDC_RADIO_SCLOCK_VSLOW) - IDC_RADIO_SCLOCK_FAST); 
+		//LucamSetProperty(_hCam, LUCAM_PROP_SNAPSHOT_CLOCK_SPEED, fClockSpeed, 0)
+
+		if (_enableFastFrames)
+		{
+			if (LucamEnableFastFrames(_hCam, &_lsSettings))
+			{
+				if (!LucamTakeFastFrame(_hCam, m_pbRawFrame))
+				{
+					std::cerr << "Could not take fast snapshot." << std::endl;
+					if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
+					m_pbRawFrame = NULL;
+					if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
+					m_pbMonoFrame = NULL;
+					if (m_pbColorFrame != NULL) delete (m_pbColorFrame);
+					m_pbColorFrame = NULL;
+					LucamDisableFastFrames(_hCam);
+					return false;
+				}
+				LucamDisableFastFrames(_hCam);
+			}
+			else
+			{
+				std::cerr << "Could not enable fast snapshot." << std::endl;
+				if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
+				m_pbRawFrame = NULL;
+				if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
+				m_pbMonoFrame = NULL;
+				if (m_pbColorFrame != NULL) delete (m_pbColorFrame);
+				m_pbColorFrame = NULL;
+				return false;
+			}
+
+		}
+		else
+		{
+			if (!LucamTakeSnapshot(_hCam, &_lsSettings, m_pbRawFrame))
+			{
+				std::cerr << "Could not get snapshot." << std::endl;
+				if (m_pbRawFrame != NULL) delete (m_pbRawFrame);
+				m_pbRawFrame = NULL;
+				if (m_pbMonoFrame != NULL) delete (m_pbMonoFrame);
+				m_pbMonoFrame = NULL;
+				if (m_pbColorFrame != NULL) delete (m_pbColorFrame);
+				m_pbColorFrame = NULL;
+				return false;
+			}
+		}
+
+		rawFrame = m_pbRawFrame;
+	
 		return true;
 	}
 	

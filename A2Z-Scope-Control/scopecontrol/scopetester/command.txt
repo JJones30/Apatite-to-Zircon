@@ -1,0 +1,1 @@
+cd C:\Users\Ray Donelick\Downloads\ij148\ImageJ\ & java -jar -Xmx1024m ij.jar -macro FocuserMacro.ijm 0_0
