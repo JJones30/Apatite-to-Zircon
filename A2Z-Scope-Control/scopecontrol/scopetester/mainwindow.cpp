@@ -184,8 +184,10 @@ void MainWindow::_buildUserControlOptionBox()
 	//QLabel* completeLabel = new QLabel("% Complete: ");
 	//_progressLabel = new QLabel("N/A");
 	_progressBar = new QProgressBar(_scopeOptionDock);
+	_estTime = new QLabel("N/A");
 	_userControlOptionBoxLayout->addWidget(traverseButton, 10, 0);
 	_userControlOptionBoxLayout->addWidget(_progressBar, 10, 1);
+	_userControlOptionBoxLayout->addWidget(_estTime, 10, 2);
 	//_userControlOptionBoxLayout->addWidget(completeLabel, 10, 1);
 	//_userControlOptionBoxLayout->addWidget(_progressLabel, 10, 2);
 	connect(traverseButton, SIGNAL(released()), this, SLOT(SlideTraversal()));
@@ -384,6 +386,18 @@ void MainWindow::_onTraversalTimer()
 	_stage->where(curX, curY);
 	int x = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
 	int y = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+	if (_traverseCount == 0)
+	{
+		_currentX = x;
+		_currentY = y;
+	}
+	else
+	{
+		_lastX = _currentX;
+		_lastY = _currentY;
+		_currentX = x;
+		_currentY = y;
+	}
 	if (((x > _xPixels) || (x < -_stageError/2)) && (_zCount % 	_MAXDEPTH == 1 && _zPos == 0))
 	{
 		if (!_stage->move(curX + 1 * 0.002 * -1 * MM_TO_STAGE_UNITS, curY + 1 * _stageYSpeed * MM_TO_STAGE_UNITS))
@@ -419,7 +433,10 @@ void MainWindow::_onTraversalTimer()
 			if (noChangeInY)
 			{
 				FocusImage();
-				if (_traverseCount % 3 == 0)
+				if (_traverseCount != 0)
+					UpdateDepth();
+
+				if (_traverseCount % 25 == 0)
 				{
 					_resetTimerID = startTimer(5000);
 					killTimer(_traversalTimerID);
@@ -488,6 +505,77 @@ void MainWindow::_onTraversalTimer()
 			Sleep(300);
 		}
 	}
+}
+
+
+void MainWindow::UpdateDepth()
+{
+	cv::Mat heightMap;
+	cv::Mat histogram;
+	int max = 0;
+	double maxVal;
+	int depthCount[256];
+	std::string path = "C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Height Maps\\HeightMap_";
+	path.append(std::to_string(_lastX));
+	path.append("_");
+	path.append(std::to_string(_lastY));
+	path.append(".png");
+	heightMap = cv::imread(path, 0);
+
+	for (int k = 0; k < 257; ++k)
+		depthCount[k] = 0;
+
+	int channel = heightMap.channels();
+
+	int nRows = heightMap.rows;
+	int nCols = heightMap.cols * channel;
+
+	if (heightMap.isContinuous())
+	{
+		nCols *= nRows;
+		nRows = 1;
+	}
+
+	int i, j;
+	uchar* p;
+	for (i = 0; i < nRows; ++i)
+	{
+		p = heightMap.ptr<uchar>(i);
+		for (j = 0; j < nCols; ++j)
+		{
+			depthCount[(int)p[j]] += 1;
+		}
+	}
+
+	for (int index = 0; index < 257; ++index)
+	{
+		if (depthCount[index] > max)
+		{
+			max = depthCount[index];
+			maxVal = index;
+		}
+	}
+
+	int zeroPt = (255 / _MAXDEPTH) * ((_MAXDEPTH / 2) + 1);
+	int depthChange = (maxVal / (255 / _MAXDEPTH) + !!((int)maxVal % (255 / _MAXDEPTH))) - zeroPt;
+	if (depthChange > 0)
+	{
+		double curZ;
+		_stage->where(curZ); //get current Z position
+		if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+
+	}
+	else if (depthChange < 0)
+	{
+		depthChange += zeroPt;
+		double curZ;
+		_stage->where(curZ); //get current Z position
+		if (!_stage->move(curZ + -1 * depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+			_postStatus("Failed to move stage!");
+
+	}
+
 }
 
 
@@ -684,9 +772,9 @@ void MainWindow::_handleArrowKeyRelease(QKeyEvent* event)
  * Parameters: pContext - a void pointer that tells the function that "this" (the MainWindow
  *						 class) called this function
  *			  
- *			  pData - this is the image data in a BYTE array
+ *			   pData - this is the image data in a BYTE array
  *
- *			  dataLength - this is the length of the BYTE array
+ *			   dataLength - this is the length of the BYTE array
  */
 //void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength, ULONG unused)
 void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
@@ -712,10 +800,12 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 	cv::resize(colorFrame, frame, cv::Size(caller->_camImageDisplayWidth, caller->_camImageDisplayHeight), 0, 0, cv::INTER_AREA);
 	//std::cout << "Resized!" << std::endl;
 
+	cv::Mat frameCopy = frame.clone();
+
 	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
 
 	//Convert it to a QImage and put it in _camImage
-	caller->_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
+	caller->_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frameCopy)));
 
 	//std::cout << caller->_camImage->pixmap()->size().width() << std::endl;
 }
@@ -998,7 +1088,31 @@ void MainWindow::SlideSizeEdit()
  */
 void MainWindow::ProgressUpdate()
 {
+	time(&_currentTime);
 	_progressBar->setValue(_traverseCount);
+	int timeToGo = (int)((difftime(_currentTime, _startTime) * _totalImageCount) / _traverseCount) - difftime(_currentTime, _startTime);
+	std::string time;
+	std::string seconds = std::to_string(timeToGo % 60);
+	timeToGo /= 60;
+	int minute = timeToGo % 60;
+	std::string minutes;
+	std::string hours;
+	if (minute > 0)
+	{
+		minutes = std::to_string(minute);
+		int hour = timeToGo % 60;
+		if (hour > 0)
+		{
+			hours = std::to_string(hour);
+			time.append(hours);
+			time.append(":");
+		}
+		time.append(minutes);
+		time.append(":");
+	}
+	time.append(seconds);
+	_estTime->setText(time.c_str());
+
 }
 
 
@@ -1184,6 +1298,7 @@ void MainWindow::FindSlideOrigin()
  */
 void MainWindow::SlideTraversal()
 {
+	time(&_startTime);
 	_traversalTimerID = startTimer(0);
 	_zPos = 0;
 }

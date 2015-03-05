@@ -29,6 +29,7 @@
 #include <memory>
 #include <boost/filesystem.hpp>
 #include <stdio.h>
+#include <unordered_map>
 #include "stdafx.h"
 
 #define MM_TO_STAGE_UNITS 10000 //the stage takes move positions in tenths of microns, but that could change someday
@@ -112,6 +113,7 @@ private:
 	void ProgressUpdate();
 	void SetZoom(double &zoomX, double &zoomY, bool zoomChanged = false);
 	void PythonCallout();
+	void UpdateDepth();
 
 	int _objectiveAndLightingToIndex(int objectiveIndex, bool lighting);
 
@@ -165,6 +167,7 @@ private:
 	QLabel* _stageZPosLabel;
 	QLabel* _stageZoomLabel;
 	QLabel* _progressLabel;
+	QLabel* _estTime;
 
 
 	//Window for editing objectives
@@ -204,9 +207,13 @@ private:
 	int _zCount = 0;
 	int _traverseCount = 0;
 	int _totalImageCount = 1;
+	int _lastX;
+	int _lastY;
+	int _currentX;
+	int _currentY;
 	const double VERY_SMALL = 0.000000001;
 	bool _manual = false;
-	const int _MAXDEPTH = 11;
+	const int _MAXDEPTH = 5;
 
 	//GUI related things
 	int _camImageDisplayWidth = 1600;
@@ -241,6 +248,9 @@ private:
 
 	double _mmX;
 	double _mmY;
+
+	time_t _startTime;
+	time_t _currentTime;
 
 	//Settings read from config file
 	bool _camAutoconnect = true; //whether or not to autoconnect to the camera on program start
