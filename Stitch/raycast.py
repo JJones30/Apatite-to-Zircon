@@ -4,8 +4,10 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import time
+from skimage import morphology
+import math
 
-def raycast(image, rays=4, resolution=1, ret_type="image", dist_delta=1):
+def raycast(image, rays=4, resolution=1, ret_type="image", dist_delta=1, blur=False):
     """
     :param image: must be grayscale
     :param rays: number of rays to cast. must be 2, 4 or 8. 2 is left-right, 4 gives cardinal directions, 8 adds diagonal at 45 degrees.
@@ -45,6 +47,19 @@ def raycast(image, rays=4, resolution=1, ret_type="image", dist_delta=1):
             ret = cv2.merge(array)
         elif ret_type == "array":
             ret = array
+
+    if blur:
+        box_size = (int(math.ceil(resolution*2-1)), int(math.ceil(resolution*2-1)))
+        if ret_type == "array":
+            print "printing ret for investigative purposes:"
+            print ret
+            print "len(ret)", len(ret)
+            print "ret[0]", type(ret[0]), ret[0]
+            print "ret[1]", type(ret[1]), ret[1]
+
+            ret = [cv2.boxFilter(x, -1, box_size) for x in ret]
+        if ret_type == "image":
+            ret = cv2.boxFilter(x, -1, box_size)
     return ret
 
 
@@ -91,15 +106,65 @@ def plot_8(array):
         plt.title(names[n-1])
     plt.show()
 
-# perform and clock basic raycast, 4-ray
+def pix_score(pix, dims=8):
+    sym_score=0
+    for i in range(dims/2):
+        x1 = pix[i]
+        x2 = pix[i-(dims/2)]
+        if x1 == 0 or x2 == 0:
+            continue
+        diff = abs(x1-x2)
+        ave = (x1+x2)/2
+
+        subscore = -(diff/ave)
+        sym_score += subscore
+
+    stdev_score = np.std(pix)
+    stdev_score = 1/(stdev_score+0.1)
+
+    mean_score = abs(0.1-np.mean(pix))
+    mean_score = 1/(mean_score+0.1)
+
+    return sym_score*stdev_score*mean_score
+
+def symmetry(image, downscale=4):
+    np_sh = image.shape
+    cv_sh = (np_sh[1], np_sh[0])
+    cv_out_size = (cv_sh[0]/downscale, cv_sh[1]/downscale)
+    np_out_size = (cv_out_size[1], cv_out_size[0])
+    small_im = cv2.resize(image, cv_out_size)
+    out_im = np.zeros(np_out_size)
+    sm_sh = out_im.shape
+    for y in range(sm_sh[0]):
+        for x in range(sm_sh[1]):
+            score = pix_score(small_im[y][x], 8)
+            out_im[y][x] = score
+
+    return cv2.resize(out_im, (cv_sh[0], cv_sh[1]))
+
+# perform and clock basic raycast, 8-ray
 if True:
     image = cv2.imread("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\1x1 skeleton denoised connected.jpg")
     image = cv2.threshold(image, thresh=128, maxval=255, type=cv2.THRESH_BINARY)[1]
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = morphology.dilation(image, morphology.diamond(3))
+    #plt.imshow(image)
+    #plt.show()
     start = time.time()
-    ray_array = raycast(image, rays=8, ret_type="array", resolution=5)
+    global_res = 8
+    ray_array = raycast(image, rays=8, ret_type="array", resolution=global_res, blur=True)
     end = time.time()
     print "total runtime:", end-start
-    plot_8(ray_array)
+    #plot_8(ray_array)
+    im8 = cv2.merge(ray_array)
+    for ray in ray_array:
+        shape = ray.shape
+        print cv2.sumElems(ray)[0]/(shape[0]*shape[1])
+    symage = symmetry(im8, global_res)
+    plt.subplot(121)
+    plt.imshow(image)
+    plt.subplot(122)
+    plt.imshow(symage)
+    plt.show()
 
 
