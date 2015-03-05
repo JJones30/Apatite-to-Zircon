@@ -1,6 +1,6 @@
 __author__ = 'Clinic'
 
-from stitch import stitch, tuple_diff, tuple_sum
+from stitch import tuple_diff
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -9,14 +9,17 @@ from scipy.spatial import KDTree
 import re
 import os
 import time
+import sys
 
 print "floating_image executing"
 inf = 2**100000
 
-def imread_gray(filename):
+
+def im_read_gray(filename):
     im = cv2.imread(filename)
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     return im
+
 
 def find_min(flim_list):
     x_min = inf
@@ -26,49 +29,68 @@ def find_min(flim_list):
         y_min = min((y_min, flim.top_left[1]))
     return x_min, y_min
 
+
 def find_max(flim_list):
     x_max = -inf
     y_max = -inf
     for flim in flim_list:
         x_max = max((x_max, flim.bot_right[0]))
         y_max = max((y_max, flim.bot_right[1]))
-    return (x_max, y_max)
+    return x_max, y_max
 
-def mass_combine(flim_list, outline_images=False, feather=True):
+
+def mass_combine(flim_list, outline_images=False, feather=True, run_num=0, backdrop=()):
+    print "mass combine with depth", run_num
     move_to_0_0(flim_list)
 
     x_max, y_max = find_max(flim_list)
 
-    flim_list.sort(key=lambda flim: flim.top_left)
+    flim_list.sort(key=lambda x: x.top_left)
 
     # offset will be negative if it's not working correctly
     offset = (0, 0)
     size = (x_max, y_max)
-    new_image = np.zeros((size[1], size[0]), dtype=np.uint8)
+    if run_num == 0:
+        print "generating blank backdrop"
+        new_image = np.zeros((size[1], size[0]), dtype=np.uint8)
+    elif run_num == 1:
+        print "using fancy backdrop"
+        new_image = backdrop
+        print "shape of backdrop is", backdrop.shape
     i = 0
     for flim in flim_list:
         i += 1
         origin = tuple_diff(flim.top_left, offset)
-        dest = new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]]
         if outline_images:
-            cv2.rectangle(flim.image, (0,0), (flim.image.shape[1], flim.image.shape[0]), color=255, thickness=5)
+            cv2.rectangle(flim.image, (0, 0), (flim.image.shape[1], flim.image.shape[0]), color=255, thickness=5)
         if feather:
             original = new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]]
-            new = cv2.max(flim.image, original)
+            if run_num == 0:
+                new = cv2.max(flim.image, original)
+            elif run_num == 1:
+                new = cv2.addWeighted(flim.image, 0.5, original, 0.5, 0)
+            else:
+                return "something is horribly broken"
             new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = new
         else:
             new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = flim.image
+    if run_num == 1:
+        return new_image
+    else:
+        return mass_combine(flim_list, outline_images=outline_images, feather=feather, run_num=1, backdrop=new_image)
 
-    return new_image
 
-class floating_image:
+class FloatingImage:
     # it is currently fundamental to floating images that they are all the same dimensions
     def __init__(self, image, position):
         self.image = image
         self.position = position
         self.size = (image.shape[1], image.shape[0])
-        self.update_position_extras()
-        self.name="unnamed"
+        self.top_left = self.position
+        self.bot_right = (self.top_left[0] + self.size[0], self.top_left[1] + self.size[1])
+        self.top_right = (self.top_left[0] + self.size[0], self.top_left[1])
+        self.bot_left = (self.top_left[0], self.top_left[1] + self.size[1])
+        self.name = "unnamed"
         self.rel_pos_ests = {}
 
     def update_position_extras(self):
@@ -90,7 +112,7 @@ class floating_image:
             return True
 
     def move(self, move_vector):
-        print self.name, "is moving", move_vector
+        #print self.name, "is moving", move_vector
         self.update_pos((self.position[0] + move_vector[0], self.position[1] + move_vector[1]))
 
     def set_pos_relative_to_me(self, other, rel_pos):
@@ -100,12 +122,12 @@ class floating_image:
         offset = tuple_diff(other.top_left, self.top_left)
         self.rel_pos_ests[other.name] = offset
 
-    def align_other_to_me(self, other, max_err = (100,100), min_overlap = (300, 300), noisy=False):
-        print "aligning", other.name, "to", self.name
+    #FIXME: set noisy to False
+    def align_other_to_me(self, other, max_err=(100, 100), min_overlap=(200, 200), noisy=False, blur_hist=True, moves=[]):
+        #print "aligning", other.name, "to", self.name
         if other.name in self.rel_pos_ests.keys():
-            print "using relative position estimates"
             self.set_pos_relative_to_me(other, self.rel_pos_ests[other.name])
-            print "flims at", self.top_left, "and", other.top_left
+            #print "flims at", self.top_left, "and", other.top_left
 
         intersection = self.intersection(other)
         inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
@@ -116,23 +138,24 @@ class floating_image:
         other_subimg = other.get_subimage(intersection[0], intersection[1])
         self_inner = self_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
         other_inner = other_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
-        strategy = cv2.TM_CCORR_NORMED
+        strategy = cv2.TM_CCOEFF_NORMED
         self_other_hist = cv2.matchTemplate(self_subimg, other_inner, strategy)
         other_self_hist = cv2.matchTemplate(other_subimg, self_inner, strategy)
 
         def make_noise():
+            plt.figure()
             plt.subplot(321)
             plt.title("overlapping region from im1")
-            plt.imshow(self_subimg)
+            plt.imshow(self_subimg, cmap=cm.gray)
             plt.subplot(322)
             plt.title("overlapping region from im2")
-            plt.imshow(other_subimg)
+            plt.imshow(other_subimg, cmap=cm.gray)
             plt.subplot(323)
             plt.title("subimage with border removed")
-            plt.imshow(self_inner)
+            plt.imshow(self_inner, cmap=cm.gray)
             plt.subplot(324)
             plt.title("subimage with border removed")
-            plt.imshow(other_inner)
+            plt.imshow(other_inner, cmap=cm.gray)
             plt.subplot(325)
             plt.title("subimage position in im2")
             plt.imshow(self_other_hist)
@@ -140,24 +163,37 @@ class floating_image:
             plt.title("subimage position in im1")
             plt.imshow(other_self_hist)
             plt.show()
-
-        if noisy:
-            make_noise()
-
+        if blur_hist:
+            self_other_hist = cv2.blur(self_other_hist, (3,3))
+            other_self_hist = cv2.blur(other_self_hist, (3,3))
         self_other_max = cv2.minMaxLoc(self_other_hist)[3]
         other_self_max = cv2.minMaxLoc(other_self_hist)[3]
         self_offset_opinion = tuple_diff(self_other_max, max_err)
         other_offset_opinion = tuple_diff(max_err, other_self_max)
         disagreement = tuple_diff(self_offset_opinion, other_offset_opinion)
-        if disagreement[0] != 0 or disagreement[1] != 0:
+        if disagreement[0] > 5 or disagreement[1] > 5:
             print "disagreement is", disagreement, "consider fixing things"
+            print "images:", self.name, other.name, "positions:", self.top_left, other.top_left
+            print "not performint recommended adjust; using microscope guess"
+            if noisy:
+                make_noise()
+            moves.append("fail_disagree")
+            return True
 
         if self_offset_opinion[0] == max_err[0] or self_offset_opinion[1] == max_err[1]:
-            print "\n\nslider is all the way to the wall, something is probably broken\n\n"
-            if not noisy:
+            print "slider is all the way to the wall, something is probably broken"
+            print "images:", self.name, other.name
+            print "not performint recommended adjust; using microscope guess"
+            if noisy:
                 make_noise()
+            moves.append("fail_wall")
+            return True
 
-        other.move(self_offset_opinion)
+
+        ave = (int((self_offset_opinion[0] + other_offset_opinion[0])/2),
+               int((self_offset_opinion[1] + other_offset_opinion[1])/2))
+        other.move(ave)
+        moves.append(ave)
         return True
 
     def contains(self, point):
@@ -197,7 +233,6 @@ class floating_image:
         assert other.contains(intersection[1])
         return intersection
 
-
     def get_subimage(self, top_left, bot_right):
         if (not self.contains(top_left)) or (not self.contains(bot_right)):
             print "failed to get subimage: desired rect not totally contained in image"
@@ -211,14 +246,19 @@ class floating_image:
     def __repr__(self):
         return "(image" + self.name + " at " + str(self.top_left) + ")"
 
+
 def grab_from_folder(folder_name):
     file_list = os.listdir(folder_name)
-    print file_list
+    print len(file_list), "files detected"
     image_file = re.compile('Focused_[-0-9]+_[-0-9]+.jpg')
     images_with_positions = []
+    i = 0
     for filename in file_list:
+        if i % 100 == 0:
+            print i, "images read"
+        i += 1
         if not image_file.match(filename):
-            print "file", filename, "does not match"
+            print "file", filename, "has invalid name; ignoring"
             continue
         fullname = folder_name + filename
         filename = filename.replace(".jpg", "")
@@ -227,14 +267,15 @@ def grab_from_folder(folder_name):
         x_y = (int(x_y[0]), -int(x_y[1]))
         image = cv2.imread(fullname)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        print x_y
-        flim = floating_image(image, x_y)
+        flim = FloatingImage(image, x_y)
 
         images_with_positions.append(flim)
     return images_with_positions
 
-def mass_align(flim_array, center_location, noisy=False):
-    prettily_display(flim_array, "before mass align")
+
+def mass_align(flim_array, center_location, noisy=False, moves=[]):
+    if noisy:
+        prettily_display(flim_array, "before mass align")
     # setup
     area_tree = KDTree([flim.top_left for flim in flim_array])
     aligned = set()
@@ -259,16 +300,13 @@ def mass_align(flim_array, center_location, noisy=False):
         #print "unaligned adjacents:", adjacents
 
         for flim in adjacents:
-            align = curr.align_other_to_me(flim, noisy=False)
+            align = curr.align_other_to_me(flim, noisy=False, moves=moves)
             if align:
                 frontier.append(flim)
                 aligned.add(flim)
             else:
                 print "failed to align", flim.name, "to", curr.name
-            if False: #fixme turn error reporting back on
-                flim_display = visualize(flim_array)
-                plt.imshow(flim_display)
-                plt.show()
+
         area_tree = KDTree([flim.top_left for flim in flim_array])
 
         #print ""
@@ -279,6 +317,7 @@ def move_to_0_0(flim_array):
     for flim in flim_array:
         flim.move((-x_min, -y_min))
 
+
 def prettily_display(flim_array, title=""):
     total_im = mass_combine(flim_array, outline_images=False)
     shape = total_im.shape
@@ -286,6 +325,7 @@ def prettily_display(flim_array, title=""):
     plt.imshow(smaller, cmap=cm.gray)
     plt.title(title)
     plt.show()
+
 
 def get_center(flim_array):
     """assumes flim_array is already zeroed"""
@@ -301,43 +341,79 @@ def visualize(flim_array):
     width = max([flim.bot_right[0] for flim in flim_array]) + 50
     height = max([flim.bot_right[1] for flim in flim_array]) + 50
     display_image = np.zeros((height, width, 3), np.uint8)
-    i=0
+    i = 0
     for flim in flim_array:
-        i=i+1
+        i += 1
 
-        cv2.circle(display_image, flim.top_left, 100, [25*(i+1),75*(i%3),255-25*(i+1)], thickness=-1)
-        cv2.rectangle(display_image, flim.top_left, flim.bot_right, [25*(i+1), 75*(i%3), 255-25*(i+1)], thickness=20)
+        cv2.circle(display_image, flim.top_left, 100, [25 * (i + 1), 75*(i % 3), 255-25*(i+1)], thickness=-1)
+        cv2.rectangle(display_image, flim.top_left, flim.bot_right, [25*(i+1), 75*(i % 3), 255-25*(i+1)], thickness=20)
     return display_image
 
-dirname="C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1\\"
-print os.listdir(dirname)
-flim_array = grab_from_folder(dirname)
-move_to_0_0(flim_array)
-for i in range(len(flim_array)):
-    flim_array[i].name="index " + str(i)
 
-for flim_1 in flim_array:
-    for flim_2 in flim_array:
-        flim_1.record_initial_relative_position(flim_2)
+def trim_flim_array(xmin, xmax, ymin, ymax, flim_array):
+    new_array = []
+    for flim in flim_array:
+        if xmin < flim.top_left[0] < xmax:
+            if ymin < flim.top_left[1] < ymax:
+                new_array.append(flim)
+    return new_array
 
-if True:
-    start = time.time()
+
+def main(argv):
+    read_dir_name = argv[0]
+    write_file_name = argv[1]
+
+    flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
-    tl = find_min(flim_array)
-    br = find_max(flim_array)
+    if len(argv) > 2:
+        xmin, xmax, ymin, ymax = argv[2], argv[3], argv[4], argv[5]
+        flim_array = trim_flim_array(xmin, xmax, ymin, ymax, flim_array)
+        move_to_0_0(flim_array)
+    for i in range(len(flim_array)):
+        flim_array[i].name = "index " + str(i)
 
-    plt.show()
-    print "tl:", tl, "br:", br
+    for flim_1 in flim_array:
+        for flim_2 in flim_array:
+            flim_1.record_initial_relative_position(flim_2)
 
-    mass_align(flim_array, center_location=get_center(flim_array))
-    print "\n\ncalling mass combine\n\n"
-    total_im = mass_combine(flim_array, outline_images=False, feather=True)
-    end = time.time()
-    print "mass combine ends"
-    print "runtime:", end-start
-    shape = total_im.shape
-    smaller = cv2.resize(total_im, (shape[1]/3, shape[0]/3))
+    if True:
+        moves = []
+        start = time.time()
+        move_to_0_0(flim_array)
+        tl = find_min(flim_array)
+        br = find_max(flim_array)
 
-    plt.imshow(smaller, cmap=cm.gray )
-    plt.show()
-    cv2.imwrite("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\results\\10x10_1_composite.jpg", total_im)
+        #plt.show()
+        print "tl:", tl, "br:", br
+
+        mass_align(flim_array, center_location=get_center(flim_array), moves=moves)
+        print "\n\ncalling mass combine\n\n"
+        total_im = mass_combine(flim_array, outline_images=False, feather=True)
+        end = time.time()
+        print "mass combine ends"
+        print "runtime:", end-start
+        shape = total_im.shape
+        print "initial shape:", shape
+        if shape[1] > shape[0]:
+            pass
+            #h_ratio = 2000.0/shape[1]
+            #print "new shape:", (int(shape[0]*h_ratio), 2000)
+            #smaller = cv2.resize(total_im, (2000, int(shape[0]*h_ratio)))
+        else:
+            pass
+            #w_ratio = 2000/shape[0]
+            #smaller = cv2.resize(total_im, (shape[1]*w_ratio, 2000))
+
+        #plt.imshow(smaller, cmap=cm.gray )
+        #plt.show()
+        cv2.imwrite(write_file_name, total_im)
+        failed_moves = [x for x in moves if isinstance(x, type(""))]
+        success_moves = [x for x in moves if (x not in failed_moves)]
+        print "num failed moves:", len(failed_moves)
+        print "num success moves:", len(success_moves)
+        #plt.hist2d([x[0] for x in moves], [x[1] for x in moves], bins=50)
+        #plt.show()
+
+if __name__ == "__main__":
+    # takes: (read dir string, write filename string, xmin, xmax, ymin, ymax)
+    main(sys.argv[1:])
