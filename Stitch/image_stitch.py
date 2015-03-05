@@ -1,15 +1,18 @@
 __author__ = 'Clinic'
 
-from stitch import tuple_diff
+import re
+import os
+import time
+import sys
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import matplotlib.cm as cm
 from scipy.spatial import KDTree
-import re
-import os
-import time
-import sys
+
+from Stitch.util import tuple_diff
+
 
 print "floating_image executing"
 inf = 2**100000
