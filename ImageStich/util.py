@@ -32,3 +32,20 @@ def rect(r, w, deg=0):		# radian if deg=0; degree if deg=1
     if deg:
 	    w = pi * w / 180.0
     return r * cos(w), r * sin(w)
+
+def tuple_diff(t1, t2):
+    assert len(t1) == len(t2)
+    return tuple([t1[i] - t2[i] for i in range(len(t1))])
+
+
+def tuple_sum(t1, t2):
+    assert len(t1) == len(t2)
+    return tuple([t1[i] + t2[i] for i in range(len(t1))])
+
+
+def tuple_ave(tuples):
+    first = tuples[0]
+    for other_tuple in tuples[1:]:
+        first = tuple_sum(first, other_tuple)
+
+    return tuple([x/len(tuples) for x in first])

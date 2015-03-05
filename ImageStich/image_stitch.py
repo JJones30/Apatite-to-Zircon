@@ -1,19 +1,23 @@
 __author__ = 'Clinic'
 
-from stitch import stitch, tuple_diff, tuple_sum
+import re
+import os
+import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import matplotlib.cm as cm
 from scipy.spatial import KDTree
-import re
-import os
-import time
+
+from ImageStich.util import tuple_diff
+
 
 print "floating_image executing"
 inf = 2**100000
 
-def imread_gray(filename):
+
+def im_read_gray(filename):
     im = cv2.imread(filename)
     im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     return im
@@ -32,7 +36,7 @@ def find_max(flim_list):
     for flim in flim_list:
         x_max = max((x_max, flim.bot_right[0]))
         y_max = max((y_max, flim.bot_right[1]))
-    return (x_max, y_max)
+    return x_max, y_max
 
 def mass_combine(flim_list, outline_images=False, feather=True):
     move_to_0_0(flim_list)
@@ -49,7 +53,6 @@ def mass_combine(flim_list, outline_images=False, feather=True):
     for flim in flim_list:
         i += 1
         origin = tuple_diff(flim.top_left, offset)
-        dest = new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]]
         if outline_images:
             cv2.rectangle(flim.image, (0,0), (flim.image.shape[1], flim.image.shape[0]), color=255, thickness=5)
         if feather:
@@ -61,14 +64,15 @@ def mass_combine(flim_list, outline_images=False, feather=True):
 
     return new_image
 
-class floating_image:
+
+class floatingImage:
     # it is currently fundamental to floating images that they are all the same dimensions
     def __init__(self, image, position):
         self.image = image
         self.position = position
         self.size = (image.shape[1], image.shape[0])
         self.update_position_extras()
-        self.name="unnamed"
+        self.name = "unnamed"
         self.rel_pos_ests = {}
 
     def update_position_extras(self):
@@ -228,7 +232,7 @@ def grab_from_folder(folder_name):
         image = cv2.imread(fullname)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         print x_y
-        flim = floating_image(image, x_y)
+        flim = floatingImage(image, x_y)
 
         images_with_positions.append(flim)
     return images_with_positions
