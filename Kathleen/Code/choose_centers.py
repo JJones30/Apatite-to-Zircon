@@ -10,11 +10,12 @@ def chooseCenters(center_map, color_image,gray_image):
 
     minVal = 175 # minimum value of the peak chosen to be a crystal
     #minVal = 150
-    crystalSize = 125 # approximate size for a crystal
+    crystalSize = 125 #125 # approximate size for a crystal
+    textureArea = 50
     #minSumArea = 2250000
     minSumArea = 1900000 # minimum value of the sum of all points in the crystal-szied area
 
-    texture_image = cv2.imread('Images/3396_664.jpg',0)
+    texture_image = cv2.imread('Images/Orig/3396_664.jpg',0)
     texturePoint = (700,1175)
 
 
@@ -26,7 +27,8 @@ def chooseCenters(center_map, color_image,gray_image):
     print "made chosen texture image"
     cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
 
-    texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], crystalSize)
+    texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], textureArea)
+    texture_diff = variationDetector(texture_image, texturePoint[0], texturePoint[1], textureArea)
 
     (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) # choose max value
 
@@ -43,8 +45,10 @@ def chooseCenters(center_map, color_image,gray_image):
         else:
             if x != 0 and y != 0:
 
-                score = textureMatcher(gray_image, (x,y), crystalSize, texture_sum)
-                ranged = (min(score, 2000000.0)/2000000.0) * 255
+                #cutOff = 2000000.0
+                cutOff = 300000.0
+                score = textureMatcher(gray_image, (x,y), textureArea, [texture_sum, texture_diff])
+                ranged = (min(score, cutOff)/cutOff) * 255
                 #print ranged
 
                 centers.append((x,y))
@@ -64,10 +68,13 @@ def chooseCenters(center_map, color_image,gray_image):
                             else:
                                 color_image[i][j] = green
 
+                           #color_image[i][j] = color
+
 
             blackOutBox(center_map, x, y, crystalSize) # set all values around chosen point to 0 to prevent multiple "centers" in small area
             (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) #choose new max
 
+    print "center image done"
     cv2.imwrite('Images/center_points.jpg',color_image)
     return centers
 
@@ -107,14 +114,35 @@ def sumCrystalArea(center_map, x, y, rng):
         for j in range(y - rng, y + rng):
             if i >= 0 and i < xbound and j >= 0 and j < ybound:
                 total += center_map[i][j]
+
     return total
 
-def textureMatcher(img, testPoint,crystalSize, pointSum):
-
-
-
-
+def textureMatcher(img, testPoint,crystalSize, compareValues):
 
     textureSum = sumCrystalArea(img, testPoint[0], testPoint[1], crystalSize)
+    varSum = variationDetector(img, testPoint[0], testPoint[1], crystalSize)
 
-    return abs(pointSum - textureSum)
+    score = abs(compareValues[0] - textureSum) + abs(compareValues[1] - varSum)
+    #score = abs(compareValues[1] - varSum)
+
+    #print score
+
+    return score
+
+def variationDetector(img, x, y, rng):
+
+    totVal = sumCrystalArea(img, x, y, rng)
+    avgVal = totVal/(2*rng)**2
+    #print avgVal
+
+    xbound = len(img)
+    ybound = len(img[x])
+    total = 0
+
+    for i in range(x - rng, x + rng):
+        for j in range(y - rng, y + rng):
+            if i >= 0 and i < xbound and j >= 0 and j < ybound:
+                #print avgVal, img[i][j]
+                total += abs(avgVal-img[i][j])
+    #print total
+    return total

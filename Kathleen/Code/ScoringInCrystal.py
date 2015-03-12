@@ -16,7 +16,10 @@ import RayCast_v3 as rc3
 #file = 'Images/SlidesToTest/1293-12.jpg'
 #file = 'Images/SlidesToTest/1479-4.jpg'
 #file = 'Images/SlidesToTest/1479-6.jpg'
-file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
+#file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
+#file = 'Images/SlidesToTest/Slide_on_Slide_no_edges.jpg'
+
+file = 'Images/Orig/Focused_ScopeStack.jpg'
 
 #file = 'Images/1987_708.jpg'
 #file = 'Images/Focused_ScopeStack.jpg'
@@ -37,7 +40,7 @@ color_image = cv2.imread(file)
 
 
 # testing for center finder w/o calculating map
-#scoreImg = cv2.imread('Images/center_map.jpg', 0)
+scoreImg = cv2.imread('Images/center_map.jpg', 0)
 #centers = cc.chooseCenters(scoreImg,np.copy(color_image), raw_image)
 
 #raw_image = cv2.imread('Images/22018.jpg', 0)
@@ -61,12 +64,14 @@ cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 
 
 
-"""
-full_skeleton = icd.fullSkels(raw_image, 1.5, 9)
-cv2.imwrite("Images/preprocess_full_skeleton.jpg", full_skeleton)
-denoised_full_skel = icd.denoiseSkeleton(full_skeleton, 25000)
-cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
-"""
+
+
+
+#full_skeleton = icd.fullSkels(raw_image, 1.5, 9)
+#cv2.imwrite("Images/preprocess_full_skeleton.jpg", full_skeleton)
+#denoised_full_skel = icd.denoiseSkeleton(full_skeleton, 25000)
+#cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
+
 
 connectedSkel = eroded_image
 #connectedSkel = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
@@ -87,6 +92,8 @@ connectedSkel = eroded_image
 # testing map generated randomly
 #random_image = icd.randomImage(raw_image)
 
+#icd.inverseConnnected(connectedSkel, np.copy(color_image))
+
 
 #ray_cast_2 = rc2.rayCastCenterMap(connectedSkel, (1040,1200), 4)
 #ray_cast_v3 = rc3.rayCastCenterMap(connectedSkel,(1040,1200),8, 1)
@@ -97,7 +104,8 @@ connectedSkel = eroded_image
 #dstTrans_center = icd.dstTransJustCenters(dstTrans,.99,15000)
 
 
-filled_crysts = icd.make01Values(icd.fillConectedAreas(connectedSkel))
+#filled_crysts = icd.make01Values(icd.fillConectedAreas(connectedSkel))
+filled_crysts = icd.inverseConnnected(connectedSkel, np.copy(color_image))
 
 #ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
 #ideal_crystal_rays = icd.raycastOnLimitedAreas(filled_crysts,connectedSkel,20, (1050,1200))

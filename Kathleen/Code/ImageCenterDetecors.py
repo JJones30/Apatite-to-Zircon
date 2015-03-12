@@ -10,6 +10,7 @@ from matplotlib import colors
 import scipy as sc
 from scipy.ndimage import measurements
 from pylab import (arange)
+import math
 
 
 from skimage.draw import (line, polygon, circle,
@@ -331,6 +332,202 @@ def dstTransJustCenters(dstTrans, thresh, maxSize):
 
 
     return edges
+
+
+def inverseConnnected(skeleton, color_image):
+
+    inverse = 1 - skeleton
+    for x in range(len(inverse)):
+        for y in range(len(inverse[x])):
+            if inverse[x][y] != 1:
+                inverse[max(x - 1, 0)][y] = 0
+                inverse[x][y] = 0
+                inverse[x][max(y - 1, 0)] = 0
+
+
+    cv2.imwrite("Images/inverse_skel.jpg", inverse*255)
+
+    image_dimensions = np.shape(skeleton)
+    final = np.zeros(image_dimensions)
+
+    (maxX, maxY) = image_dimensions
+
+    minCirc = .4
+    maxSize = 40000
+    minSize = 3000
+
+
+    lw, num = measurements.label(inverse, [[0,1,0],[1,1,1],[0,1,0]])
+    area = measurements.sum(inverse, lw, index=arange(lw.max() + 1))
+    filtareas = filter(lambda x: x < maxSize and x > minSize and x != 0, area)
+
+    bodies = getLabeledBodies(lw, lw.max() + 1, area, maxSize, minSize)
+
+    perimeters = calcPerims(lw, lw.max() + 1, bodies)
+
+
+    print perimeters
+    circularities = calcCircularity(perimeters, filtareas)
+    print circularities
+
+
+
+    center_mass_unfilt = measurements.center_of_mass(inverse, lw, index=arange(lw.max() + 1))
+
+    center_mass = []
+    for i in range(len(center_mass_unfilt)):
+        areaSize = area[i]
+        if areaSize < maxSize and areaSize > minSize and areaSize != 0:
+            center_mass.append(center_mass_unfilt[i])
+    #print center_mass
+
+    newBodies = []
+    newCenters = []
+    for i in range(len(bodies)):
+        circ = circularities[i]
+        print circ
+        if circ > minCirc:
+
+            newBodies.append(bodies[i])
+            newCenters.append(center_mass[i])
+
+        #else: # see which ones are removed
+
+            #for point in bodies[i]:
+                #color_image[point[0]][point[1]] = [0,0,255]
+
+    bodies = newBodies
+    center_mass = newCenters
+
+    #bodies = newBodies
+    #center_mass = newCenters
+
+    colors = map((lambda x:np.random.rand(3) * 255), bodies)
+
+    red = [0, 0, 255]
+    centers = []
+
+    for i in range(len(bodies)):
+        body = bodies[i]
+        color = colors[i]
+        for point in body:
+            color_image[point[0]][point[1]] = color
+            final[point[0]][point[1]] = 1
+
+        center = center_mass[i]
+        centers.append(center)
+
+   # for x in range(len(lw)):
+        #for y in range(len(lw[x])):
+            #label = lw[x][y]
+            #areaSize = area[label]
+            #color = colors[label]
+            #if areaSize < 35000 and areaSize > 3000 and areaSize != 0:
+            #if areaSize < 40000 and areaSize > 3000 and areaSize != 0:
+                #color_image[x][y] = color
+                #final[x][y] = 1
+
+
+                #center = center_mass[label]
+                #if center not in centers:
+                    #centers.append(center_mass[label])
+
+    print "finished colors"
+
+
+
+    for point in centers[1:]:
+        x = int(point[0])
+        y = int(point[1])
+
+
+        #usePoint = True
+        #for i in range(x -7, x + 7):
+            #for j in range(y-7, y+7):
+                #if i >= 0 and i < maxX and j >= 0 and j < maxY:
+                    #if lw[i][j] != lw[x][y]:
+                        #usePoint = False
+        #if usePoint:
+        for i in range(x -7, x + 7):
+            for j in range(y-7, y+7):
+                if i >= 0 and i < maxX and j >= 0 and j < maxY:
+                    color_image[i][j] = red
+
+
+
+        #color_image[min(x + 1, maxX - 1)][y] = color
+        #color_image[max(x - 1, 0)][y] = color
+        #color_image[x][y] = color
+        #color_image[x][min(y + 1, maxY - 1)] = color
+        #color_image[x][max(y - 1, 0)] = color
+        #color_image[point[0]][point[1]] = [0,0,255]
+
+
+    final= gaussian_filter(final, sigma=20)
+
+
+
+    print "made connected inverse"
+    cv2.imwrite("Images/inverse_connected.jpg", color_image)
+    cv2.imwrite("Images/inverse_connected_map.jpg", final*255)
+    return final
+
+def calcCircularity(perims, areas):
+    print len(perims), len(areas)
+    circs = []
+    for i in range(len(perims)):
+        p = perims[i]
+        a = areas[i]
+        c = (4*math.pi*a)/(p**2)
+        circs.append(c)
+    return circs
+
+
+def calcPerims(labels, numLabels, bodies):
+
+    print numLabels
+    perimeters = []
+    image_dimensions = np.shape(labels)
+    binary = np.zeros(image_dimensions)
+    for i in range(len(bodies)):
+        binary = np.zeros(image_dimensions)
+
+        for point in bodies[i]:
+            binary[point[0]][point[1]] = 1
+
+        #for x in range(len(binary)):
+            #for y in range(len(binary[x])):
+                #binary[x][y] = (labels[x][y] == i)
+
+
+        #binary = map(lambda x: x == i, np.copy(labels))
+        perim = measure.perimeter(binary)
+        perimeters += [perim]
+
+    return perimeters
+
+
+def getLabeledBodies(labels, numLabels, areas, maxSize, minSize):
+    bodies = []
+    for i in range(numLabels):
+        bodies.append([])
+
+    for x in range(len(labels)):
+        for y in range(len(labels[x])):
+            point = (x,y)
+            l = labels[x][y]
+            areaSize = areas[l]
+            if areaSize < maxSize and areaSize > minSize and areaSize != 0:
+                bodies[l].append(point)
+
+    bodies = filter(lambda x: x != [], bodies)
+    print len(bodies)
+
+    print "done finding bodies?"
+    return bodies
+
+
+
 
 
 
