@@ -146,3 +146,24 @@ def variationDetector(img, x, y, rng):
                 total += abs(avgVal-img[i][j])
     #print total
     return total
+
+
+def rankCenters(color_image, centers, bodies):
+    red = [0,0,255]
+
+    xbound = len(color_image)
+    ybound = len(color_image[0])
+
+    for (x,y) in centers:
+        x = int(x)
+        y = int(y)
+        for i in range(x -7, x + 7):
+            for j in range(y-7, y+7):
+                if i >= 0 and i < xbound and j >= 0 and j < ybound:
+                    #if ranged > 200:
+                    color_image[i][j] = red
+                    #else:
+                       #color_image[i][j] = green
+
+    print "center filtering done"
+    cv2.imwrite('Images/center_points_filtered.jpg',color_image)

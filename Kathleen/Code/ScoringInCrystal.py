@@ -13,13 +13,13 @@ import RayCast_v3 as rc3
 #file = 'Images/SlidesToTest/1129-1E2.jpg'
 #file = 'Images/SlidesToTest/1293-7.jpg'
 #file = 'Images/SlidesToTest/1293-9.jpg'
-#file = 'Images/SlidesToTest/1293-12.jpg'
+file = 'Images/SlidesToTest/1293-12.jpg'
 #file = 'Images/SlidesToTest/1479-4.jpg'
 #file = 'Images/SlidesToTest/1479-6.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide_no_edges.jpg'
 
-file = 'Images/Orig/Focused_ScopeStack.jpg'
+#file = 'Images/Orig/Focused_ScopeStack.jpg'
 
 #file = 'Images/1987_708.jpg'
 #file = 'Images/Focused_ScopeStack.jpg'
@@ -64,7 +64,8 @@ cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 
 
 
-
+filled_crysts, centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image))
+filtered_centers = cc.rankCenters(np.copy(color_image),centers,bodies)
 
 
 #full_skeleton = icd.fullSkels(raw_image, 1.5, 9)
@@ -73,7 +74,7 @@ cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 #cv2.imwrite("Images/preprocess_denoised_full_skel.jpg", denoised_full_skel)
 
 
-connectedSkel = eroded_image
+#connectedSkel = eroded_image
 #connectedSkel = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
 
 
@@ -105,7 +106,7 @@ connectedSkel = eroded_image
 
 
 #filled_crysts = icd.make01Values(icd.fillConectedAreas(connectedSkel))
-filled_crysts = icd.inverseConnnected(connectedSkel, np.copy(color_image))
+#filled_crysts = icd.inverseConnnected(connectedSkel, np.copy(color_image))
 
 #ideal_crystal_rays = icd.raycastWithIdealCrystal(connectedSkel,20, (1050,1200))
 #ideal_crystal_rays = icd.raycastOnLimitedAreas(filled_crysts,connectedSkel,20, (1050,1200))
@@ -124,15 +125,15 @@ filled_crysts = icd.inverseConnnected(connectedSkel, np.copy(color_image))
 #for (im, wt) in all_images:
     #scoreImg = np.add(im * wt,scoreImg)
 
-scoreImg = filled_crysts
+#scoreImg = filled_crysts
 
 ### convert probability image into displayable heat map ###
-scoreImg = icd.make01Values(scoreImg)
-scoreImg = scoreImg * 255
+#scoreImg = icd.make01Values(scoreImg)
+#scoreImg = scoreImg * 255
 
-cv2.imwrite('Images/center_map.jpg',scoreImg)
+#cv2.imwrite('Images/center_map.jpg',scoreImg)
 
 
-centers = cc.chooseCenters(scoreImg,color_image, raw_image)
+#centers = cc.chooseCenters(scoreImg,color_image, raw_image)
 print "Number of crystals found:",
 print len(centers)
