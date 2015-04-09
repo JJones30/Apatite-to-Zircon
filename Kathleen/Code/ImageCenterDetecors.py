@@ -54,7 +54,7 @@ def raycastOnLimitedAreas(chosen_areas, skeleton, numrays, sample_point):
     probs =  1 - make01Values(newImage)
 
 
-    #Display point in image
+    #Uncomment to display point in image
     #for x in range(sample_point[0] - 5, sample_point[0] + 5):
         #for y in range(sample_point[1] - 5, sample_point[1] + 5):
             #sample_edges[x][y] = 255
@@ -77,10 +77,9 @@ def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     :param raw_image: the raw image
     :return: an image with the values from ray casting and how close they match the ideal crystal
     """
-    #sample_image = cv2.imread('Images/22018.jpg', 0)
+
     sample_image = cv2.imread('Images/3396_664.jpg', 0)
     sample_edges = sk.denoiseSkeleton(sk.erodeEdges(sample_image, 2.5, 3.5), 25000)
-    #sample_point = (800,650)
     sample_rays = rc.rotatingWhiteDistance(sample_edges,sample_point, numrays)[0]
 
 
@@ -92,7 +91,6 @@ def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     for x in range(0,len(skeleton),squareSize):
         for y in range(0,len(skeleton[x]),squareSize):
             point_rays = rc.rotatingWhiteDistance(skeleton, (x,y), numrays)[0]
-            #val = compareRayAverages(sample_rays,point_rays)
             val = differenceBetweenRays(sample_rays, point_rays)
             newImage[x][y] = val
 
@@ -335,7 +333,15 @@ def dstTransJustCenters(dstTrans, thresh, maxSize):
 
 
 def inverseConnnected(skeleton, color_image):
+    """Find bodies of crystals and centers by running connected components on the
+    inverted skeleton"""
 
+    # Parameters for filtering out bodies that are not crystals
+    minCirc = .35 # minimum circularity
+    maxSize = 200000
+    minSize = 5000
+
+    #Invert and dilate the skeleton to use for connected components
     inverse = 1 - skeleton
     for x in range(len(inverse)):
         for y in range(len(inverse[x])):
@@ -344,55 +350,48 @@ def inverseConnnected(skeleton, color_image):
                 inverse[x][y] = 0
                 inverse[x][max(y - 1, 0)] = 0
 
-
+    print "created inverted skeleton"
     cv2.imwrite("Images/inverse_skel.jpg", inverse*255)
 
     image_dimensions = np.shape(skeleton)
     final = np.zeros(image_dimensions)
-
     (maxX, maxY) = image_dimensions
 
-    minCirc = .35 #.4
-    maxSize = 200000#40000
-    minSize = 5000#3000
-
-
+    #Find connected components
     lw, num = measurements.label(inverse, [[1,1,1],[1,1,1],[1,1,1]])
     area = measurements.sum(inverse, lw, index=arange(lw.max() + 1))
+
+    #Filter out areas where the crystal size is too large or too small
     filtareas = filter(lambda x: x < maxSize and x > minSize and x != 0, area)
-
+    # Get list of bodies with their associated points from the labeled image
+    # Filters out bodies that are too large or small
     bodies = getLabeledBodies(lw, lw.max() + 1, area, maxSize, minSize)
+    # For each body, calculate the bounding box
     boundings = map(findBounding,bodies)
-
-    #perimeters = calcPerims(lw, lw.max() + 1, bodies)
+    # Use the bounding boxes to estimate the crystals' perimeters
     perimeters = estimatePerim(boundings)
-
-
+    # Use the estimated perimeters and ares to estimate the crystals' circularities
     circularities = calcCircularity(perimeters, filtareas)
 
-
-
-
+    # Find the centers of masses for all bodies in the labeled image
     center_mass_unfilt = measurements.center_of_mass(inverse, lw, index=arange(lw.max() + 1))
-
+    # Filter out the centers of bodies that were too large or too small
     center_mass = []
     for i in range(len(center_mass_unfilt)):
         areaSize = area[i]
         if areaSize < maxSize and areaSize > minSize and areaSize != 0:
             center_mass.append(center_mass_unfilt[i])
 
+    # Remove all bodies and centers from crystals that do not meet the minimum circularity requirement
     newBodies = []
     newCenters = []
     for i in range(len(bodies)):
         circ = circularities[i]
-        #print circ
         if circ > minCirc:
-
             newBodies.append(bodies[i])
             newCenters.append(center_mass[i])
 
         else: # see which ones are removed
-
             for point in bodies[i]:
                 color_image[point[0]][point[1]] = [0,0,255]
 
@@ -400,11 +399,12 @@ def inverseConnnected(skeleton, color_image):
     center_mass = newCenters
 
 
+    # Create image to visualize
     colors = map((lambda x:np.random.rand(3) * 255), bodies)
-
     red = [0, 0, 255]
     centers = []
 
+    # Color in all crystal bodies different colors
     for i in range(len(bodies)):
         body = bodies[i]
         color = colors[i]
@@ -415,7 +415,7 @@ def inverseConnnected(skeleton, color_image):
         center = center_mass[i]
         centers.append(center)
 
-
+    # Make a point in each body for the center
     for point in centers[1:]:
         x = int(point[0])
         y = int(point[1])
@@ -425,18 +425,26 @@ def inverseConnnected(skeleton, color_image):
                 if i >= 0 and i < maxX and j >= 0 and j < maxY:
                     color_image[i][j] = red
 
+    # "Final" ia binary image where the crystals are 1s and the rest is 0s if later implementations
+    # want to use the algorithm in conjunction with other algorithms that give results in that form
+    # Not used in this implementation
 
-    final= gaussian_filter(final, sigma=20)
+    #final= gaussian_filter(final, sigma=20)
 
 
 
     print "made connected inverse"
     cv2.imwrite("Images/inverse_connected.jpg", color_image)
     cv2.imwrite("Images/inverse_connected_map.jpg", final*255)
-    return final, centers, bodies
+    return centers, bodies
 
 def calcCircularity(perims, areas):
-    print len(perims), len(areas)
+    """
+    Calculate the circularity of the bodies based on their areas and and perimeters
+    :param perims: list of bodies' estimated perimeters
+    :param areas: list of bodies' areas
+    :return: list of bodies' circularities
+    """
     circs = []
     for i in range(len(perims)):
         p = perims[i]
@@ -447,18 +455,24 @@ def calcCircularity(perims, areas):
 
 
 def calcPerims(labels, numLabels, bodies):
-
-    #print numLabels
+    """
+    Calculate the actual perimeters of bodies. Not used currently due to long run time.
+    Also highly sensitive to features within the crystal that cause gaps in the body
+    :param labels: labeled image
+    :param numLabels: number of different labels in image
+    :param bodies: list of bodies
+    :return: list of perimeters for each body
+    """
     perimeters = []
     image_dimensions = np.shape(labels)
-    binary = np.zeros(image_dimensions)
+
+    # For each body, create a new image that is just that body
+    # Run edge detector on that body and calculate the rsulting perimeter of that body
     for i in range(len(bodies)):
         binary = np.zeros(image_dimensions)
 
         for point in bodies[i]:
             binary[point[0]][point[1]] = 1
-
-
 
         edges = canny(binary, sigma=.5)
         edgesFilt = gaussian_filter(edges, 1)
@@ -467,13 +481,8 @@ def calcPerims(labels, numLabels, bodies):
 
         edges = edges.astype(np.bool)
         binary = binary.astype(np.bool)
-
         newEdges = np.add(binary,edges)
-
         newEdges = newEdges.astype(np.int)
-
-
-
 
         perim = measure.perimeter(newEdges, neighbourhood=4)
         perimeters += [perim]
@@ -482,7 +491,11 @@ def calcPerims(labels, numLabels, bodies):
 
 
 def estimatePerim(bounding):
-    #print bounding
+    """
+    Estimate perimeters of crystals based on their bounding boxes
+    :param bounding: list of bounding boxes for crystals
+    :return: list of estimated perimeters
+    """
     perims = []
     for (xmax, xmin, ymax, ymin) in bounding:
         perim = 2*((xmax - xmin) + (ymax - ymin))
@@ -492,6 +505,17 @@ def estimatePerim(bounding):
 
 
 def getLabeledBodies(labels, numLabels, areas, maxSize, minSize):
+    """
+    Format a labeled image into a list of separate bodies, filtering out
+    bodies that are too large or small
+    :param labels: labeld image of bodies
+    :param numLabels: number of labels
+    :param areas: list of bodies' areas
+    :param maxSize: maximum allowed size for a crystal
+    :param minSize: minimum allowed size for a crystal
+    :return: list of bodies, which are lists of points in the body
+             large and small bodies are filtered out of the list
+    """
     bodies = []
     for i in range(numLabels):
         bodies.append([])
@@ -504,12 +528,18 @@ def getLabeledBodies(labels, numLabels, areas, maxSize, minSize):
             if areaSize < maxSize and areaSize > minSize and areaSize != 0:
                 bodies[l].append(point)
 
+    # Remove empty bodies which were bodies that were too large or small to include
     bodies = filter(lambda x: x != [], bodies)
 
     print "done finding bodies"
     return bodies
 
 def findBounding(points):
+    """
+    Calculate the bounding box for points in a body
+    :param points: list of points in a single body
+    :return:the bounding box of the body, as a tuple of the max x, min x, max y, and min y values
+    """
     xvals = map(lambda x: x[0], points)
     yvals = map(lambda x: x[1], points)
 

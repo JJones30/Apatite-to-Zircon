@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import csv
 
 def chooseCenters(center_map, color_image,gray_image):
     """
@@ -9,10 +10,8 @@ def chooseCenters(center_map, color_image,gray_image):
     """
 
     minVal = 175 # minimum value of the peak chosen to be a crystal
-    #minVal = 150
-    crystalSize = 125 #125 # approximate size for a crystal
+    crystalSize = 125# approximate size for a crystal
     textureArea = 50
-    #minSumArea = 2250000
     minSumArea = 1900000 # minimum value of the sum of all points in the crystal-szied area
 
     texture_image = cv2.imread('Images/Orig/3396_664.jpg',0)
@@ -45,20 +44,16 @@ def chooseCenters(center_map, color_image,gray_image):
         else:
             if x != 0 and y != 0:
 
-                #cutOff = 2000000.0
                 cutOff = 300000.0
                 score = textureMatcher(gray_image, (x,y), textureArea, [texture_sum, texture_diff])
                 ranged = (min(score, cutOff)/cutOff) * 255
-                #print ranged
+
 
                 centers.append((x,y))
 
-                #c = (center_map[x][y] - 175)*5
-                #color = [25*(c+1),75*(c%3),255-25*(c+1)]
-                #color = [0,(center_map[x][y] - minVal)*5,255 - (center_map[x][y] - minVal)*5] # color value based on peak value
                 red = [0,0,255]
                 green = [0,255,0]
-                color = [0,255-ranged,ranged]
+
 
                 for i in range(x -7, x + 7):
                     for j in range(y-7, y+7):
@@ -118,25 +113,20 @@ def sumCrystalArea(center_map, x, y, rng):
     return total
 
 def textureMatcher(img, testPoint,crystalSize, avgImage, compareValues):
-
+    """Calculate a score based on brightness and variance of crystal"""
     texture_sum = sumCrystalArea(img, testPoint[0], testPoint[1], crystalSize)
     varSum = variationDetector(img, testPoint[0], testPoint[1], crystalSize)
     texture_avg = texture_sum/((crystalSize*2)**2)/avgImage
 
-
-
+    # Multiply scores by weighting factors so they affect the total score in the right proportions
     score = 3*abs(compareValues[0] - texture_avg) + .000001*abs(compareValues[1] - varSum)
-    #score = abs(compareValues[1] - varSum)
-
-    #print score
 
     return score
 
 def variationDetector(img, x, y, rng):
-
+    """Calculate the vairance of brightness in a crystal"""
     totVal = sumCrystalArea(img, x, y, rng)
     avgVal = totVal/(2*rng)**2
-    #print avgVal
 
     xbound = len(img)
     ybound = len(img[x])
@@ -145,57 +135,84 @@ def variationDetector(img, x, y, rng):
     for i in range(x - rng, x + rng):
         for j in range(y - rng, y + rng):
             if i >= 0 and i < xbound and j >= 0 and j < ybound:
-                #print avgVal, img[i][j]
                 total += abs(avgVal-img[i][j])
-    #print total
     return total
 
 
 def rankCenters(color_image,gray_image, centers, bodies):
+    """
+    Score each center of a crystal based on brightness and variance compared to a known crystal
+    then use the score to filter out non-apatite bodies
+    :param color_image: Color image of slide
+    :param gray_image: Grayscale image of slide
+    :param centers: List of centers of potential apatite crystals
+    :param bodies: List of points in each body (Currently not used, but could be used in future for
+    reasoning about texture)
+    :return: list of centers filtered to include only crystals that are likely to be apatite
+    """
+
+    textureArea = 50 # size of area used around center to examine texture
+    cutOff = 1 # Maximum raw score allowed before the ranged score defaults to maximum value
+    maxScore = 230 # Maximum score to be included (score out of 255, higher is less likely to be apatite)
 
 
-    textureArea = 50
-    cutOff = 1#300000.0
+    # Currently using a sample image. In future may want to get values from several sample images and then just
+    # use calculated values instead of repeating the analysis of the same image for each run
+    texture_image = cv2.imread('Images/Orig/3396_664.jpg',0) # Image used to for a sample point to determine texture
+    texturePoint = (700,1175) # Center of known apatite crystal in sample image to compare against
 
-    texture_image = cv2.imread('Images/Orig/3396_664.jpg',0)
-    texturePoint = (700,1175)
+
+    # Calculate average value of both the slide and the sample image to normalize results for slide's
+    # brightness
     meanTexture = np.mean(texture_image)
-    print meanTexture
     meanImage = np.mean(gray_image)
-    print meanImage
 
-
+    # Calculate brightness and variation for sample point to compare against
     texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], textureArea)
     texture_avg = (texture_sum/((textureArea*2)**2))/meanTexture
-    print texture_avg
     texture_diff = variationDetector(texture_image, texturePoint[0], texturePoint[1], textureArea)
-
-
-
 
 
     red = [0,0,255]
     green = [0,255,0]
-
     xbound = len(color_image)
     ybound = len(color_image[0])
+    filteredCenters = []
 
+    # Score each potential center and filter out the ones with scores that are too high to be considered apatite
     for (x,y) in centers:
         x = int(x)
         y = int(y)
-
-        #score = textureMatcher(gray_image, (x,y), textureArea, [texture_sum, texture_diff])
+        # Calculate score based on brightness and variation in comparison to sample point values
         score = textureMatcher(gray_image, (x,y), textureArea, meanImage, [texture_avg, texture_diff])
-        print score
-        ranged = (min(score, cutOff)/cutOff) * 255
+        ranged = (min(score, cutOff)/cutOff) * 255 # Represent score as a value between 0-255 (lower is more likely
+                                                   # too be apatite). This can allow the score to be easily visualized as a color
 
+        # Visualize the results of the algorithm by making chosen points green and filtered ones red
         for i in range(x -7, x + 7):
             for j in range(y-7, y+7):
                 if i >= 0 and i < xbound and j >= 0 and j < ybound:
-                    if ranged > 230:
+                    if ranged > maxScore:
                         color_image[i][j] = red
                     else:
-                       color_image[i][j] = green
+                        color_image[i][j] = green
+
+        # Keep center if the score is low enough
+        if ranged <= maxScore:
+            filteredCenters.append((x,y))
 
     print "center filtering done"
     cv2.imwrite('Images/center_points_filtered.jpg',color_image)
+
+    return filteredCenters
+
+
+def writeToFile(centers):
+    """
+    write list of center points to the csv file 'centers.csv'
+    :param centers: list of center points of crystals
+    :return: None
+    """
+    with open('centers.csv', 'wb') as csvfile:
+        writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(centers)

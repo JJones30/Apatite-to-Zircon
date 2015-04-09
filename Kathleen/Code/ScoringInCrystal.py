@@ -68,7 +68,7 @@ cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 
 
 
-filled_crysts, centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image))
+centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image))
 filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,bodies)
 
 
@@ -140,4 +140,6 @@ filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,bodies)
 
 #centers = cc.chooseCenters(scoreImg,color_image, raw_image)
 print "Number of crystals found:",
-print len(centers)
+print len(filtered_centers)
+
+cc.writeToFile(filtered_centers)
