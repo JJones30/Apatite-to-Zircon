@@ -8,16 +8,20 @@ import RayCast_v3 as rc3
 
 
 #file = 'Images/SlidesToTest/3x3_slide2.jpg'
-#file = 'Images/SlidesToTest/3x3_slide3.jpg'
+file = 'Images/SlidesToTest/3x3_slide3.jpg'
 #file = 'Images/SlidesToTest/5x5_slide1.jpg'
 #file = 'Images/SlidesToTest/1129-1E2.jpg'
 #file = 'Images/SlidesToTest/1293-7.jpg'
 #file = 'Images/SlidesToTest/1293-9.jpg'
-file = 'Images/SlidesToTest/1293-12.jpg'
+#file = 'Images/SlidesToTest/1293-12.jpg'
 #file = 'Images/SlidesToTest/1479-4.jpg'
 #file = 'Images/SlidesToTest/1479-6.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide_no_edges.jpg'
+
+#file = 'Images/SlidesToTest/10x10_1_composite.jpg'
+
+#file = 'Images/SlidesToTest/BearForceTwo_randfeather.jpg'
 
 #file = 'Images/Orig/Focused_ScopeStack.jpg'
 
@@ -65,7 +69,7 @@ cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 
 
 filled_crysts, centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image))
-filtered_centers = cc.rankCenters(np.copy(color_image),centers,bodies)
+filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,bodies)
 
 
 #full_skeleton = icd.fullSkels(raw_image, 1.5, 9)

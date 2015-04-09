@@ -353,7 +353,7 @@ def inverseConnnected(skeleton, color_image):
     (maxX, maxY) = image_dimensions
 
     minCirc = .35 #.4
-    maxSize = 40000
+    maxSize = 200000#40000
     minSize = 5000#3000
 
 

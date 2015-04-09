@@ -117,12 +117,15 @@ def sumCrystalArea(center_map, x, y, rng):
 
     return total
 
-def textureMatcher(img, testPoint,crystalSize, compareValues):
+def textureMatcher(img, testPoint,crystalSize, avgImage, compareValues):
 
-    textureSum = sumCrystalArea(img, testPoint[0], testPoint[1], crystalSize)
+    texture_sum = sumCrystalArea(img, testPoint[0], testPoint[1], crystalSize)
     varSum = variationDetector(img, testPoint[0], testPoint[1], crystalSize)
+    texture_avg = texture_sum/((crystalSize*2)**2)/avgImage
 
-    score = abs(compareValues[0] - textureSum) + abs(compareValues[1] - varSum)
+
+
+    score = 3*abs(compareValues[0] - texture_avg) + .000001*abs(compareValues[1] - varSum)
     #score = abs(compareValues[1] - varSum)
 
     #print score
@@ -148,8 +151,31 @@ def variationDetector(img, x, y, rng):
     return total
 
 
-def rankCenters(color_image, centers, bodies):
+def rankCenters(color_image,gray_image, centers, bodies):
+
+
+    textureArea = 50
+    cutOff = 1#300000.0
+
+    texture_image = cv2.imread('Images/Orig/3396_664.jpg',0)
+    texturePoint = (700,1175)
+    meanTexture = np.mean(texture_image)
+    print meanTexture
+    meanImage = np.mean(gray_image)
+    print meanImage
+
+
+    texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], textureArea)
+    texture_avg = (texture_sum/((textureArea*2)**2))/meanTexture
+    print texture_avg
+    texture_diff = variationDetector(texture_image, texturePoint[0], texturePoint[1], textureArea)
+
+
+
+
+
     red = [0,0,255]
+    green = [0,255,0]
 
     xbound = len(color_image)
     ybound = len(color_image[0])
@@ -157,13 +183,19 @@ def rankCenters(color_image, centers, bodies):
     for (x,y) in centers:
         x = int(x)
         y = int(y)
+
+        #score = textureMatcher(gray_image, (x,y), textureArea, [texture_sum, texture_diff])
+        score = textureMatcher(gray_image, (x,y), textureArea, meanImage, [texture_avg, texture_diff])
+        print score
+        ranged = (min(score, cutOff)/cutOff) * 255
+
         for i in range(x -7, x + 7):
             for j in range(y-7, y+7):
                 if i >= 0 and i < xbound and j >= 0 and j < ybound:
-                    #if ranged > 200:
-                    color_image[i][j] = red
-                    #else:
-                       #color_image[i][j] = green
+                    if ranged > 230:
+                        color_image[i][j] = red
+                    else:
+                       color_image[i][j] = green
 
     print "center filtering done"
     cv2.imwrite('Images/center_points_filtered.jpg',color_image)
