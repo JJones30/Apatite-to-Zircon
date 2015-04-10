@@ -18,55 +18,7 @@ from skimage.draw import (line, polygon, circle,
                           ellipse, ellipse_perimeter,
                           bezier_curve)
 
-def raycastOnLimitedAreas(chosen_areas, skeleton, numrays, sample_point):
-    sample_image = cv2.imread('Images/3396_664.jpg', 0)
-    sample_edges = sk.denoiseSkeleton(sk.erodeEdges(sample_image, 2.5, 3.5), 25000)
-    sample_rays = rc.rotatingWhiteDistance(sample_edges,sample_point, numrays)[0]
 
-
-    image_dimensions = np.shape(skeleton)
-    newImage = np.zeros(image_dimensions)
-
-    squareSize = 15
-    notUsed = []
-
-    for x in range(0,len(skeleton),squareSize):
-        for y in range(0,len(skeleton[x]),squareSize):
-            if chosen_areas[x][y] > .9:
-                point_rays = rc.rotatingWhiteDistance(skeleton, (x,y), numrays)[0]
-                val = differenceBetweenRays(sample_rays, point_rays)
-                newImage[x][y] = val
-            else:
-                notUsed.append((x,y))
-
-    print "done casting rays"
-
-    maxVal = np.amax(newImage)
-    for val in notUsed:
-        x,y = val
-        newImage[x][y] = maxVal
-
-    makeSquaresSameValue(newImage, squareSize)
-
-    print "done normalizing values"
-
-
-    probs =  1 - make01Values(newImage)
-
-
-    #Uncomment to display point in image
-    #for x in range(sample_point[0] - 5, sample_point[0] + 5):
-        #for y in range(sample_point[1] - 5, sample_point[1] + 5):
-            #sample_edges[x][y] = 255
-    #print "wrote chosen point image"
-    #cv2.imwrite('Images/choose_center_point.jpg',sample_edges)
-
-
-    print "made ideal crystal ray cast image"
-    cv2.imwrite('Images/ideal_crystal_cast.jpg',probs* 255)
-
-
-    return probs
 
 
 
@@ -78,7 +30,7 @@ def raycastWithIdealCrystal(skeleton, numrays, sample_point):
     :return: an image with the values from ray casting and how close they match the ideal crystal
     """
 
-    sample_image = cv2.imread('Images/3396_664.jpg', 0)
+    sample_image = cv2.imread('Images/Orig/3396_664.jpg', 0)
     sample_edges = sk.denoiseSkeleton(sk.erodeEdges(sample_image, 2.5, 3.5), 25000)
     sample_rays = rc.rotatingWhiteDistance(sample_edges,sample_point, numrays)[0]
 

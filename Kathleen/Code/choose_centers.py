@@ -26,7 +26,10 @@ def chooseCenters(center_map, color_image,gray_image):
     print "made chosen texture image"
     cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
 
+    meanTexture = np.mean(texture_image)
+    meanImage = np.mean(gray_image)
     texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], textureArea)
+    texture_avg = (texture_sum/((textureArea*2)**2))/meanTexture
     texture_diff = variationDetector(texture_image, texturePoint[0], texturePoint[1], textureArea)
 
     (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) # choose max value
@@ -45,7 +48,7 @@ def chooseCenters(center_map, color_image,gray_image):
             if x != 0 and y != 0:
 
                 cutOff = 300000.0
-                score = textureMatcher(gray_image, (x,y), textureArea, [texture_sum, texture_diff])
+                score = textureMatcher(gray_image, (x,y), textureArea, meanImage, [texture_avg, texture_diff])
                 ranged = (min(score, cutOff)/cutOff) * 255
 
 
@@ -124,7 +127,15 @@ def textureMatcher(img, testPoint,crystalSize, avgImage, compareValues):
     return score
 
 def variationDetector(img, x, y, rng):
-    """Calculate the vairance of brightness in a crystal"""
+    """
+    Calculate the vairance of brightness in a crystal
+    :param img: grayscale image
+    :param x: x coordinate of center point
+    :param y: y coordinate of center point
+    :param rng: distance in both x and y directions from the center point
+    that is used for the crystals
+    :return:
+    """
     totVal = sumCrystalArea(img, x, y, rng)
     avgVal = totVal/(2*rng)**2
 
@@ -132,10 +143,12 @@ def variationDetector(img, x, y, rng):
     ybound = len(img[x])
     total = 0
 
+    # sum distnace from avg for each point
     for i in range(x - rng, x + rng):
         for j in range(y - rng, y + rng):
             if i >= 0 and i < xbound and j >= 0 and j < ybound:
                 total += abs(avgVal-img[i][j])
+
     return total
 
 

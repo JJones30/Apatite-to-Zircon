@@ -287,3 +287,5 @@ def colorEdges(image, color_image):
             color_image[x][min(y + 1, maxY - 1)] = color
             color_image[x][max(y - 1, 0)] = color
     cv2.imwrite('Images/contour_detect.jpg',color_image)
+
+
