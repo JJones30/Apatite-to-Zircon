@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import cv2
 import matplotlib.cm as cm
 from scipy.spatial import KDTree
+import sys
+sys.path.insert(0, 'C:/Users/Ray Donelick/Documents/Ravi/Apatite-to-Zircon')
 
 from Stitch.util import tuple_diff
 
@@ -362,7 +364,9 @@ def trim_flim_array(xmin, xmax, ymin, ymax, flim_array):
     return new_array
 
 
-def main(argv):
+def main(arg):
+    argv = arg[0].split("#")
+
     read_dir_name = argv[0]
     write_file_name = argv[1]
 
