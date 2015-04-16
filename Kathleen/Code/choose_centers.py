@@ -4,7 +4,9 @@ import csv
 
 def chooseCenters(center_map, color_image,gray_image):
     """
-    :param center_map: 0-255 valued image where higher values are more likesly to be centers
+    Choose centers from a map of likelihoods created from stacking several different
+    algorithms. Not used when connected components is used to find crystal bodies.
+    :param center_map: 0-255 valued image where higher values are more likely to be centers
     :param color_image: color image to insert chosen dots onto
     :return: array of center points, also writes and image with those center points on it
     """
@@ -12,13 +14,13 @@ def chooseCenters(center_map, color_image,gray_image):
     minVal = 175 # minimum value of the peak chosen to be a crystal
     crystalSize = 125# approximate size for a crystal
     textureArea = 50
-    minSumArea = 1900000 # minimum value of the sum of all points in the crystal-szied area
+    minSumArea = 1900000 # minimum value of the sum of all points in the crystal-sized area
+    cutOff = 300000.0 # maximum value for ranking system to be considered apatite
 
+    # Use a sample from a known crystal to compare texture of new crystals
     texture_image = cv2.imread('Images/Orig/3396_664.jpg',0)
     texturePoint = (700,1175)
-
-
-    #Display point in image
+    #Display point in image that is used to compare textures
     sample_text = np.copy(texture_image)
     for x in range(texturePoint[0] - 5, texturePoint[0] + 5):
         for y in range(texturePoint[1] - 5, texturePoint[1] + 5):
@@ -26,12 +28,14 @@ def chooseCenters(center_map, color_image,gray_image):
     print "made chosen texture image"
     cv2.imwrite('Images/choose_texture_point.jpg',sample_text)
 
+    # Get statistics from sample point
     meanTexture = np.mean(texture_image)
     meanImage = np.mean(gray_image)
     texture_sum = sumCrystalArea(texture_image, texturePoint[0], texturePoint[1], textureArea)
     texture_avg = (texture_sum/((textureArea*2)**2))/meanTexture
     texture_diff = variationDetector(texture_image, texturePoint[0], texturePoint[1], textureArea)
 
+    # Start with the peak value in the center map for first potential crystal
     (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) # choose max value
 
     xbound = len(center_map)
@@ -39,25 +43,23 @@ def chooseCenters(center_map, color_image,gray_image):
 
     centers = []
 
+    # Continue finding crystals until values reach the cutoff
     while center_map[x][y] > minVal:
 
+        # Calculate statistics about new point and compare against sample point
         sumArea = sumCrystalArea(center_map,x,y,crystalSize)
         if sumArea < minSumArea:
             center_map[x][y] = minVal
         else:
             if x != 0 and y != 0:
-
-                cutOff = 300000.0
                 score = textureMatcher(gray_image, (x,y), textureArea, meanImage, [texture_avg, texture_diff])
                 ranged = (min(score, cutOff)/cutOff) * 255
-
-
-                centers.append((x,y))
 
                 red = [0,0,255]
                 green = [0,255,0]
 
-
+                # create image displaying center points and add point
+                # to list of centers if not filtered out
                 for i in range(x -7, x + 7):
                     for j in range(y-7, y+7):
                         if i >= 0 and i < xbound and j >= 0 and j < ybound:
@@ -65,11 +67,11 @@ def chooseCenters(center_map, color_image,gray_image):
                                 color_image[i][j] = red
                             else:
                                 color_image[i][j] = green
+                                centers.append((x,y))
 
-                           #color_image[i][j] = color
+            # set all values around chosen point to 0 to prevent multiple "centers" in small area
+            blackOutBox(center_map, x, y, crystalSize)
 
-
-            blackOutBox(center_map, x, y, crystalSize) # set all values around chosen point to 0 to prevent multiple "centers" in small area
             (x,y) = np.unravel_index(center_map.argmax(), center_map.shape) #choose new max
 
     print "center image done"

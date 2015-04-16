@@ -22,7 +22,6 @@ def makeEdges(raw_image):
     :return: binary image after running canny edge detection and bluring and thresholding
     """
     edges = canny(raw_image, sigma=2.5)
-    #allLines = canny(raw_image, sigma=.25)
     edgesFilt = gaussian_filter(edges, 2)
     thresh = threshold_otsu(edgesFilt)
     edges = edgesFilt > thresh
@@ -39,7 +38,6 @@ def makeAllLines(raw_image):
     :return: binary image of edges and features
     """
     edges = canny(raw_image, sigma=1.5)
-    #allLines = canny(raw_image, sigma=.25)
     edgesFilt = gaussian_filter(edges, 2)
     thresh = threshold_otsu(edgesFilt)
     edges = edgesFilt > thresh
@@ -50,6 +48,15 @@ def makeAllLines(raw_image):
 
 
 def scoreEndpointLines(endpoints, labeled, color_image, skeleton):
+    """
+    Score endpoints using various heuristics and create new skeleton by
+    connecting them
+    :param endpoints: list of endpoints in image
+    :param labeled: labeled image from connected components
+    :param color_image: color image of slide
+    :param skeleton: skeletonized image of slide
+    :return: new skeleton of slide with endpoints connected
+    """
     green = [0,255,0]
     canConnect = np.copy(endpoints)
     newSkel = np.copy(skeleton)
@@ -77,11 +84,8 @@ def scoreEndpointLines(endpoints, labeled, color_image, skeleton):
                 scores += [score]
 
         index = np.argmin(scores)
-        ##print scores[index]
-        #connectPoint = endpoints.pop(index)
+
         connectPoint = canConnect[index]
-        #connectPointLabel = labeled[connectPoint[0]][connectPoint[1]]
-        #if pointLabel == connectPointLabel:
         if scores[index] < 10000:
             rr, cc = line(point[0], point[1], connectPoint[0], connectPoint[1])
             color_image[rr, cc] = green
@@ -160,6 +164,13 @@ def findPointsBefore(endpoints, labeled):
 
 
 def connectPointsByNearest(color_image, endpoints, lw):
+    """
+    Connect endpoints to the closest endpoint
+    :param color_image: color image of slide
+    :param endpoints: list of found endpoints
+    :param lw: labeling of image
+    :return: image with endpoints connected
+    """
     green = [0,255,0]
     while len(endpoints) > 1:
         point = endpoints[0]
@@ -167,7 +178,6 @@ def connectPointsByNearest(color_image, endpoints, lw):
         endpoints = endpoints[1:]
         dists = map(lambda x: getDistance(x, point), endpoints)
         index = np.argmin(dists)
-        #connectPoint = endpoints.pop(index)
         connectPoint = endpoints[index]
         connectPointLabel = lw[connectPoint[0]][connectPoint[1]]
         print dists[index], connectPoint, point
@@ -177,7 +187,7 @@ def connectPointsByNearest(color_image, endpoints, lw):
     return color_image
 
 def basicDstTrans(raw_image, skel):
-    """ run out-of-box distance transform
+    """ run out-of-box distance transform with a few chosen parameters
     """
 
     im = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
@@ -223,7 +233,6 @@ def matchTemplate(raw_image):
     # All the 6 methods for comparison in a list
     methods = ['cv2.TM_CCOEFF', 'cv2.TM_CCOEFF_NORMED', 'cv2.TM_CCORR',
             'cv2.TM_CCORR_NORMED', 'cv2.TM_SQDIFF', 'cv2.TM_SQDIFF_NORMED']
-    meth =  'cv2.TM_SQDIFF_NORMED'
 
     for meth in methods:
         img = img2.copy()
@@ -238,14 +247,6 @@ def matchTemplate(raw_image):
 
         res = icd.make01Values(res)
 
-        """
-        for i in range(len(newImage)):
-            for j in range(len(newImage[i])):
-                if i < len(res) and j < len(res[0]):
-                    newImage[i][j] = res[i][j]
-                else:
-                    newImage[i][j] = .25
-        """
 
         x = sizex/2
         y = sizey/2
@@ -265,11 +266,8 @@ def colorEdges(image, color_image):
 
     image_dimensions = np.shape(image)
     (maxX, maxY) = image_dimensions
-    #newImage = np.zeros(image_dimensions)
     colors.rgb_to_hsv(color_image)
 
-
-    #img = makeAllLines(image)
     img = sk.fullSkels(image, 2, 7)
     contours = measure.find_contours(img, 0, fully_connected="high")
     for i in range(len(contours)):
