@@ -108,7 +108,8 @@ private:
 	void _previewCam();
 
 	//Handy utility stuff
-	static QImage _Mat2QImage(const cv::Mat3b &src);
+	//static void _Mat2QImage(const cv::Mat3b &src, QImage **dest);
+	void _Mat2QImage(const cv::Mat3b src);
 	void FocusImage();
 	void ProgressUpdate();
 	void SetZoom(double &zoomX, double &zoomY, bool zoomChanged = false);
@@ -122,6 +123,7 @@ private:
 
 	//Qt objects
 	QLabel* _camImage;
+	QImage* _dest;
 
 	QStatusBar* _statusBar;
 	SimpleStatusIndicator* _camStatusIndicator;
@@ -212,8 +214,11 @@ private:
 	int _currentX;
 	int _currentY;
 	const double VERY_SMALL = 0.000000001;
-	bool _manual = false;
-	const int _MAXDEPTH = 5;
+	bool _offTheSlide = false;
+	int _MAXDEPTH = 11;
+	int _prevDepth = _MAXDEPTH;
+	int _threshold = 15;
+	bool _deleted = false;
 
 	//GUI related things
 	int _camImageDisplayWidth = 1600;

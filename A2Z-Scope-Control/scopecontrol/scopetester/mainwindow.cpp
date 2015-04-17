@@ -43,6 +43,7 @@ MainWindow::~MainWindow()
 	{
 		delete(_stage);
 		delete(_cam);
+		delete(_dest);
 	}
 }
 
@@ -284,6 +285,7 @@ void MainWindow::_initializeScope()
 		//Do real scope things!
 
 		//Create the objects
+		_dest = NULL;
 		_cam = new sc::LumeneraCamera(1);
 
 		_stage = new sc::StageController("COM3",
@@ -386,18 +388,6 @@ void MainWindow::_onTraversalTimer()
 	_stage->where(curX, curY);
 	int x = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
 	int y = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
-	if (_traverseCount == 0)
-	{
-		_currentX = x;
-		_currentY = y;
-	}
-	else
-	{
-		_lastX = _currentX;
-		_lastY = _currentY;
-		_currentX = x;
-		_currentY = y;
-	}
 	if (((x > _xPixels) || (x < -_stageError/2)) && (_zCount % 	_MAXDEPTH == 1 && _zPos == 0))
 	{
 		if (!_stage->move(curX + 1 * 0.002 * -1 * MM_TO_STAGE_UNITS, curY + 1 * _stageYSpeed * MM_TO_STAGE_UNITS))
@@ -414,15 +404,18 @@ void MainWindow::_onTraversalTimer()
 			killTimer(_traversalTimerID);
 			_zCount = 0;
 			_travRev = -1;
+			_traverseCount = 0;
 			finished = true;
 			_progressBar->reset();
+			Sleep(10000);
+			PythonCallout();
 		}
 		_stage->where(curX, curY);
 		noChangeInY = 0;
 	}
 	if (!finished)
 	{
-		if (_zCount == 0)
+		if (_traverseCount == 0 && _zCount == 0)
 		{
 			SaveCurrentFrame();
 			++_zCount;
@@ -433,14 +426,28 @@ void MainWindow::_onTraversalTimer()
 			if (noChangeInY)
 			{
 				FocusImage();
-				if (_traverseCount != 0)
+				if (_traverseCount == 0)
+				{
+					_currentX = x;
+					_currentY = y;
+				}
+				else
+				{
+					_lastX = _currentX;
+					_lastY = _currentY;
+					_currentX = x;
+					_currentY = y;
 					UpdateDepth();
 
-				if (_traverseCount % 25 == 0)
-				{
-					_resetTimerID = startTimer(5000);
-					killTimer(_traversalTimerID);
+					if (_traverseCount % 25 == 0)
+					{
+						_resetTimerID = startTimer(5000);
+						killTimer(_traversalTimerID);
+					}
 				}
+
+				_zCount = 0;
+
 				_traverseCount++;
 				ProgressUpdate();
 			}
@@ -452,8 +459,6 @@ void MainWindow::_onTraversalTimer()
 			if (!_stage->move(curX + 1 * _stageXSpeed * _travRev * MM_TO_STAGE_UNITS, curY))
 				_postStatus("Failed to move stage!");
 
-			Sleep(300);
-			_stage->move(_zOffset);
 			Sleep(300);
 			SaveCurrentFrame();
 			++_zCount;
@@ -511,8 +516,8 @@ void MainWindow::_onTraversalTimer()
 void MainWindow::UpdateDepth()
 {
 	cv::Mat heightMap;
-	cv::Mat histogram;
 	int max = 0;
+	int min = 1920000;
 	double maxVal;
 	int depthCount[256];
 	std::string path = "C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Height Maps\\HeightMap_";
@@ -521,6 +526,8 @@ void MainWindow::UpdateDepth()
 	path.append(std::to_string(_lastY));
 	path.append(".png");
 	heightMap = cv::imread(path, 0);
+	while (heightMap.rows == 0)
+		heightMap = cv::imread(path, 0);
 
 	for (int k = 0; k < 257; ++k)
 		depthCount[k] = 0;
@@ -554,26 +561,72 @@ void MainWindow::UpdateDepth()
 			max = depthCount[index];
 			maxVal = index;
 		}
+		if (depthCount[index] < min && depthCount[index] > 0)
+		{
+			min = depthCount[index];
+		}
 	}
 
-	int zeroPt = (255 / _MAXDEPTH) * ((_MAXDEPTH / 2) + 1);
-	int depthChange = (maxVal / (255 / _MAXDEPTH) + !!((int)maxVal % (255 / _MAXDEPTH))) - zeroPt;
-	if (depthChange > 0)
+	int pctDiff = (min * 100) / (max + 1);
+	pctDiff == 0 ? pctDiff = 31 : pctDiff;
+	if (pctDiff < _threshold)
 	{
+		_offTheSlide = false;
+		_MAXDEPTH = _prevDepth;
+		int zeroPt = ((_MAXDEPTH / 2) + 1);
+		int depthChange = (maxVal   / (255 / _MAXDEPTH)) - zeroPt;
+		if (depthChange > 3)
+			depthChange = 3;
+		if (depthChange < -3)
+			depthChange = -3;
 		double curZ;
 		_stage->where(curZ); //get current Z position
-		if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
-			_postStatus("Failed to move stage!");
-
+		if (depthChange > 0)
+		{
+			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			Sleep(300);
+		}
+		else if (depthChange < 0)
+		{
+			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			Sleep(300);
+		}
 	}
-	else if (depthChange < 0)
+	else if (_offTheSlide && pctDiff < _threshold * 2)
 	{
-		depthChange += zeroPt;
+		_MAXDEPTH = 25;
+		int zeroPt = ((_MAXDEPTH / 2) + 1);
+		int depthChange = (maxVal / (255 / _MAXDEPTH)) - zeroPt;
+		if (depthChange > 2)
+			depthChange = 2;
+		if (depthChange < -2)
+			depthChange = -2;
 		double curZ;
 		_stage->where(curZ); //get current Z position
-		if (!_stage->move(curZ + -1 * depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
-			_postStatus("Failed to move stage!");
-
+		if (depthChange > 0)
+		{
+			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			Sleep(300);
+		}
+		else if (depthChange < 0)
+		{
+			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
+				_postStatus("Failed to move stage!");
+			Sleep(300);
+		}
+	}
+	else if (_offTheSlide && _zoomLevel == 10 && pctDiff < _threshold * 3.5)
+	{
+		_MAXDEPTH = 35;
+	}
+	else
+	{
+		if (_offTheSlide)
+			_MAXDEPTH = _prevDepth;
+		_offTheSlide = true;
 	}
 
 }
@@ -780,33 +833,39 @@ void MainWindow::_handleArrowKeyRelease(QKeyEvent* event)
 void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 {
 	MainWindow* caller = (MainWindow*) pContext;
+	if (caller->_traverseCount%3 == 0 && caller->_zCount == 0)
+	{
+		//get the image size from the camera
+		int imageWidth, imageHeight;
+		caller->_cam->get_image_size(imageWidth, imageHeight);
 
-	//get the image size from the camera
-	int imageWidth, imageHeight;
-	caller->_cam->get_image_size(imageWidth, imageHeight);
+		//outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, data);
 
-	//outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, data);
+		cv::Mat rawFrame;
+		//caller->_cam->byteDataToMat(pData, rawFrame);
+		rawFrame = cv::Mat(imageHeight, imageWidth, CV_8UC1, pData);
 
-	cv::Mat rawFrame;
-	//caller->_cam->byteDataToMat(pData, rawFrame);
-	rawFrame = cv::Mat(imageHeight, imageWidth, CV_8UC1, pData);
+		cv::Mat colorFrame;
+		cv::cvtColor(rawFrame, colorFrame, CV_GRAY2RGB);
 
-	cv::Mat colorFrame;
-	cv::cvtColor(rawFrame, colorFrame, CV_GRAY2RGB);
+		//Resize the frame to the desired size
+		cv::Mat frame;
+		//std::cout << "Resizing frame..." << std::endl;
+		cv::resize(colorFrame, frame, cv::Size(caller->_camImageDisplayWidth, caller->_camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+		//std::cout << "Resized!" << std::endl;
+		if (caller->_dest == NULL)
+		{
+			caller->_dest = new QImage(frame.cols, frame.rows, QImage::Format_ARGB32);
+		}
 
-	//Resize the frame to the desired size
-	cv::Mat frame;
-	//std::cout << "Resizing frame..." << std::endl;
-	cv::resize(colorFrame, frame, cv::Size(caller->_camImageDisplayWidth, caller->_camImageDisplayHeight), 0, 0, cv::INTER_AREA);
-	//std::cout << "Resized!" << std::endl;
+		caller->_Mat2QImage(frame);
+		//QImage dest = QImage(frame.data, frame.cols, frame.rows, frame.step, QImage::Format_ARGB32);
 
-	cv::Mat frameCopy = frame.clone();
+		//std::cout << "Got a frame, size: " << frame.size() << std::endl;
 
-	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
-
-	//Convert it to a QImage and put it in _camImage
-	caller->_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frameCopy)));
-
+		//Convert it to a QImage and put it in _camImage
+		caller->_camImage->setPixmap(QPixmap::fromImage(*(caller->_dest)));
+	}
 	//std::cout << caller->_camImage->pixmap()->size().width() << std::endl;
 }
 
@@ -820,26 +879,29 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 void MainWindow::_previewCam()
 {
 	//get the image size from the camera
-	int imageWidth, imageHeight;
-	_cam->get_image_size(imageWidth, imageHeight);
 
 	//outImage = cv::Mat(_lffFormat.height, _lffFormat.width, CV_8UC3, data);
 
-	cv::Mat rawFrame;
-	cv::Mat frame;
-
-	_cam->getFrame(rawFrame);
 
 	//Resize the frame to the desired size
 
 	//std::cout << "Resizing frame..." << std::endl;
-	cv::resize(rawFrame, frame, cv::Size(_camImageDisplayWidth, _camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+
 	//std::cout << "Resized!" << std::endl;
 
 	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
 
 	//Convert it to a QImage and put it in _camImage
-	_camImage->setPixmap(QPixmap::fromImage(_Mat2QImage(frame)));
+	cv::Mat frame;
+	//std::cout << "Resizing frame..." << std::endl;
+	cv::resize(_outImage, frame, cv::Size(_camImageDisplayWidth, _camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+	if (_dest == NULL)
+	{
+		_dest = new QImage(frame.cols, frame.rows, QImage::Format_ARGB32);
+	}
+
+	_Mat2QImage(frame);
+	_camImage->setPixmap(QPixmap::fromImage(*_dest));
 }
 
 
@@ -873,6 +935,8 @@ void MainWindow::cameraToggle()
 			_postStatus("Camera connected.");
 			_camStatusIndicator->enable();
 			_toggleCameraAction->setText("Disconnect from camera");
+
+			QImage* _dest = NULL;
 
 			//Add a callback function for video frames sent from the camera
 			if (!_cam->addNewFrameCallback(&PreviewCallback, (void *) this))
@@ -962,36 +1026,50 @@ void MainWindow::SetZoom(double &zoomX, double &zoomY, bool zoomChanged)
 	case 40: zoomX = ZOOM_40X_X; zoomY = ZOOM_40X_Y, _mmX = MM_40X_X, _mmY = MM_40X_Y; 
 		if (zoomChanged)
 		{
-			_xPixels = 132000; _yPixels = 134000;
+			_slideWidthEdit->setText("132000");
+			_slideHeightEdit->setText("134000");
+			_stageXSpeedEdit->setText(QString::number(0.075));
+			_stageYSpeedEdit->setText(QString::number(0.05));
+			_stageZIncrementEdit->setText(QString::number(0.001));
+			XYSpeedEdit();
+			ZIncrementEdit();
+			_MAXDEPTH = 19;
+			_prevDepth = _MAXDEPTH;
+			_threshold = 30;
 		}
 		break;
 	case 20: zoomX = ZOOM_20X_X; zoomY = ZOOM_20X_Y, _mmX = MM_20X_X, _mmY = MM_20X_Y;
 		if (zoomChanged)
 		{
-			_xPixels = 85000; _yPixels = 87000;
+			_slideWidthEdit->setText("85000");
+			_slideHeightEdit->setText("87000");
+			_stageXSpeedEdit->setText(QString::number(0.15));
+			_stageYSpeedEdit->setText(QString::number(0.1));
+			_stageZIncrementEdit->setText(QString::number(0.003));
+			XYSpeedEdit();
+			ZIncrementEdit();
+			_MAXDEPTH = 15;
+			_threshold = 22;
+			_prevDepth = _MAXDEPTH;
 		}
 		break;
 	case 10: zoomX = ZOOM_10X_X; zoomY = ZOOM_10X_Y, _mmX = MM_10X_X, _mmY = MM_10X_Y;
 		if (zoomChanged)
 		{
-			_xPixels = 32000; _yPixels = 34000;
+			_slideWidthEdit->setText("32000");
+			_slideHeightEdit->setText("34000");
+			_stageXSpeedEdit->setText(QString::number(0.45));
+			_stageYSpeedEdit->setText(QString::number(0.30));
+			_stageZIncrementEdit->setText(QString::number(0.01));
+			XYSpeedEdit();
+			ZIncrementEdit();
+			_MAXDEPTH = 13;
+			_threshold = 18;
+			_prevDepth = _MAXDEPTH;
 		}
 		break;
 	default: zoomX = 1; zoomY = 1;
 	}
-
-	/*
-	//Fix double precision to look correct
-	if (((_xPos > 0) && (_xPos < VERY_SMALL)) || ((_xPos < 0) && (_xPos > -VERY_SMALL)))
-		_xPos = 0;
-
-	if (((_yPos > 0) && (_yPos < VERY_SMALL)) || ((_yPos < 0) && (_yPos > -VERY_SMALL)))
-		_yPos = 0;
-
-	if (((_zPos > 0) && (_zPos < VERY_SMALL)) || ((_zPos < 0) && (_zPos > -VERY_SMALL)))
-		_zPos = 0;
-	*/
-
 }
 
 
@@ -1205,6 +1283,8 @@ void MainWindow::SaveCurrentFrame()
 	_cam->getFrame(_outImage);
 	cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
 	cv::imwrite(filename, _outImage);
+	//if (_traverseCount > 0 || _zCount > 0)
+	//	_previewCam();
 
 	//Manage memory
 	delete[] filename;
@@ -1261,15 +1341,15 @@ void MainWindow::FocusImage()
 /*
  * Function: PythonCallout
  * Author: Justin Jones HMC '15
- * Description: This function calls the ImageJ library that takes a folder of images
- *				captured at a single X-Y location and compresses them into a single
- *				in focus image. The majority of this function is parsing the position
- *				into a string to send out with the system command call.
+ * Description: This function is called at the end of a slide traversal.
+ *				It takes all of the infocus images and turns them into a 
+ *				single stitched image. This is done through a python image
+ *				stitching solution.
  */
 void MainWindow::PythonCallout()
 {
-	char* cmd = "C:\\Python27\\python.exe \"C:\\Users\\Ray Donelick\\Desktop\\t.py\"";
-	std::system(cmd);
+	std::string cmd = "\"\"C:\\Users\\Ray Donelick\\Anaconda\\python.exe\" \"C:\\Users\\Ray Donelick\\Documents\\Ravi\\Apatite-to-Zircon\\Stitch\\image_stitch.py\" \"C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Focused Images\\#C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Stitched\\Slide.jpg\"\"";
+	std::system(cmd.c_str());
 }
 
 
@@ -1371,23 +1451,34 @@ void MainWindow::_postStatus(const std::string status)
 }
 
 //Handy utility functions
-QImage MainWindow::_Mat2QImage(const cv::Mat3b &src)
+void MainWindow::_Mat2QImage(const cv::Mat3b src)
 {
-	QImage dest(src.cols, src.rows, QImage::Format_ARGB32);
-
 	for (int y = 0; y < src.rows; y++)
 	{
 		const cv::Vec3b *srcrow = src[y];
-		QRgb *destrow = (QRgb*)dest.scanLine(y);
+		QRgb *destrow = (QRgb*)(_dest->scanLine(y));
 
 		for (int x = 0; x < src.cols; x++)
 		{
 			destrow[x] = qRgba(srcrow[x][2], srcrow[x][1], srcrow[x][0], 255);
 		}
 	}
-
-	return dest;
 }
+
+/*void MainWindow::_Mat2QImage(const cv::Mat3b &src, QImage **dest)
+{
+	for (int y = 0; y < src.rows; y++)
+	{
+		const cv::Vec3b *srcrow = src[y];
+		QRgb *destrow = (QRgb*)((*dest)->scanLine(y));
+
+		for (int x = 0; x < src.cols; x++)
+		{
+			destrow[x] = qRgba(srcrow[x][2], srcrow[x][1], srcrow[x][0], 255);
+		}
+	}
+}
+*/
 
 int MainWindow::_objectiveAndLightingToIndex(int objectiveIndex, bool lighting)
 {

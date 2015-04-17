@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import cv2
 import matplotlib.cm as cm
 from scipy.spatial import KDTree
+import sys
+sys.path.insert(0, 'C:/Users/Ray Donelick/Documents/Ravi/Apatite-to-Zircon')
 
 from Stitch.util import tuple_diff
 import random
@@ -451,10 +453,11 @@ def write_storage_dir(dirname, full_image, offsets, agreements):
         print "error: file", dirname, "does not exist"
 
 
+
 def main(argv):
-    # read_dir_name = argv[0]
+    read_dir_name = argv[0]
     # should produce something like:
-    read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
+    # read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
     # where 10x10_1 is the directory name of a
     flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
