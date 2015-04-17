@@ -1348,7 +1348,7 @@ void MainWindow::FocusImage()
  */
 void MainWindow::PythonCallout()
 {
-	std::string cmd = "\"\"C:\\Users\\Ray Donelick\\Anaconda\\python.exe\" \"C:\\Users\\Ray Donelick\\Documents\\Ravi\\Apatite-to-Zircon\\Stitch\\image_stitch.py\" \"C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Focused Images\\#C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Stitched\\Slide.jpg\"\"";
+	std::string cmd = "\"\"C:\\Users\\Ray Donelick\\Anaconda\\python.exe\" \"C:\\Users\\Ray Donelick\\Documents\\Ravi\\Apatite-to-Zircon\\Stitch\\image_stitch.py\" \"C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Focused Images\\""";
 	std::system(cmd.c_str());
 }
 
@@ -1363,6 +1363,7 @@ void MainWindow::PythonCallout()
  */
 void MainWindow::FindSlideOrigin()
 {
+	PythonCallout();
 	_stage->where(_xOffset, _yOffset, _zOffset);
 	_zPos = 0;
 }

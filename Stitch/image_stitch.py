@@ -455,7 +455,11 @@ def write_storage_dir(dirname, full_image, offsets, agreements):
 
 
 def main(argv):
-    read_dir_name = argv[0]
+    read_dir_name = ""
+    for index in range(4):
+        read_dir_name += argv[index]
+        read_dir_name += " "
+    read_dir_name = read_dir_name[:-1]
     # should produce something like:
     # read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
     # where 10x10_1 is the directory name of a
