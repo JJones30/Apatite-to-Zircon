@@ -12,7 +12,7 @@ import matplotlib.cm as cm
 from scipy.spatial import KDTree
 
 from Stitch.util import tuple_diff
-
+import random
 
 print "floating_image executing"
 inf = 2**100000
@@ -24,45 +24,36 @@ def im_read_gray(filename):
     return im
 
 
-def find_min(flim_list):
+def find_corners(flim_list):
     x_min = inf
     y_min = inf
-    for flim in flim_list:
-        x_min = min((x_min, flim.top_left[0]))
-        y_min = min((y_min, flim.top_left[1]))
-    return x_min, y_min
-
-
-def find_max(flim_list):
     x_max = -inf
     y_max = -inf
     for flim in flim_list:
+        x_min = min((x_min, flim.top_left[0]))
+        y_min = min((y_min, flim.top_left[1]))
         x_max = max((x_max, flim.bot_right[0]))
         y_max = max((y_max, flim.bot_right[1]))
-    return x_max, y_max
+    return (x_min, y_min), (x_max, y_max)
 
 
 def mass_combine(flim_list, outline_images=False, feather=True, run_num=0, backdrop=()):
-    print "mass combine with depth", run_num
+    print(str(run_num) + " "),
     move_to_0_0(flim_list)
-
-    x_max, y_max = find_max(flim_list)
-
-    flim_list.sort(key=lambda x: x.top_left)
+    top_left, bot_right = find_corners(flim_list)
 
     # offset will be negative if it's not working correctly
     offset = (0, 0)
-    size = (x_max, y_max)
+    size = bot_right
     if run_num == 0:
-        print "generating blank backdrop"
         new_image = np.zeros((size[1], size[0]), dtype=np.uint8)
     elif run_num == 1:
-        print "using fancy backdrop"
         new_image = backdrop
-        print "shape of backdrop is", backdrop.shape
-    i = 0
+
+    # shuffling the list of floating images before and after feathering cuts down on stitching artifacts
+    random.shuffle(flim_list)
+
     for flim in flim_list:
-        i += 1
         origin = tuple_diff(flim.top_left, offset)
         if outline_images:
             cv2.rectangle(flim.image, (0, 0), (flim.image.shape[1], flim.image.shape[0]), color=255, thickness=5)
@@ -73,7 +64,8 @@ def mass_combine(flim_list, outline_images=False, feather=True, run_num=0, backd
             elif run_num == 1:
                 new = cv2.addWeighted(flim.image, 0.5, original, 0.5, 0)
             else:
-                return "something is horribly broken"
+                print "mass combine called with invalid run_num parameter"
+                return
             new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = new
         else:
             new_image[origin[1]:origin[1]+flim.size[1], origin[0]:origin[0]+flim.size[0]] = flim.image
@@ -83,60 +75,36 @@ def mass_combine(flim_list, outline_images=False, feather=True, run_num=0, backd
         return mass_combine(flim_list, outline_images=outline_images, feather=feather, run_num=1, backdrop=new_image)
 
 
-class FloatingImage:
-    # it is currently fundamental to floating images that they are all the same dimensions
-    def __init__(self, image, position):
-        self.image = image
-        self.position = position
-        self.size = (image.shape[1], image.shape[0])
-        self.top_left = self.position
-        self.bot_right = (self.top_left[0] + self.size[0], self.top_left[1] + self.size[1])
-        self.top_right = (self.top_left[0] + self.size[0], self.top_left[1])
-        self.bot_left = (self.top_left[0], self.top_left[1] + self.size[1])
-        self.name = "unnamed"
-        self.rel_pos_ests = {}
+def measure_agreement(flim_array):
+    if True:
+        print "\nmeasuring agreement. this step might be very slow for large images. disable above this print statement."
+    else:
+        # the results
+        return "Unknown"
+    start = time.time()
+    overlap_pixels = 0
+    agreement_sum = 0
+    for flim_ind_1 in range(len(flim_array)):
+        for flim_ind_2 in range(flim_ind_1+1, len(flim_array)):
+            flim_1 = flim_array[flim_ind_1]
+            flim_2 = flim_array[flim_ind_2]
+            assert isinstance(flim_1, FloatingImage)
+            assert isinstance(flim_2, FloatingImage)
+            if flim_1.intersects(flim_2):
+                tl, br = flim_1.intersection(flim_2)
+                width = br[0] - tl[0]
+                height = br[1] - tl[1]
+                overlap_pixels += width*height
 
-    def update_position_extras(self):
-        self.top_left = self.position
-        self.bot_right = (self.top_left[0] + self.size[0], self.top_left[1] + self.size[1])
-        self.top_right = (self.top_left[0] + self.size[0], self.top_left[1])
-        self.bot_left = (self.top_left[0], self.top_left[1] + self.size[1])
+                agreement = get_overlap_hists(flim_1, flim_2, (0,0))
+                agreement_sum += agreement[0][0]
+    end = time.time()
+    print "agreement runtime:", str(end-start) + "s"
+    return agreement_sum/overlap_pixels
 
-    def update_pos(self, new_pos, max_change=(inf, inf)):
-        if abs(new_pos[0] - self.position[0]) > max_change[0]:
-            print "refusing to move: too much x change"
-            return False
-        elif abs(new_pos[1] - self.position[1]) > max_change[1]:
-            print "refusing to move: too much y change"
-            return False
-        else:
-            self.position = new_pos
-            self.update_position_extras()
-            return True
-
-    def move(self, move_vector):
-        #print self.name, "is moving", move_vector
-        self.update_pos((self.position[0] + move_vector[0], self.position[1] + move_vector[1]))
-
-    def set_pos_relative_to_me(self, other, rel_pos):
-        other.update_pos((self.top_left[0] + rel_pos[0], self.top_left[1] + rel_pos[1]))
-
-    def record_initial_relative_position(self, other):
-        offset = tuple_diff(other.top_left, self.top_left)
-        self.rel_pos_ests[other.name] = offset
-
-    #FIXME: set noisy to False
-    def align_other_to_me(self, other, max_err=(100, 100), min_overlap=(200, 200), noisy=False, blur_hist=True, moves=[]):
-        #print "aligning", other.name, "to", self.name
-        if other.name in self.rel_pos_ests.keys():
-            self.set_pos_relative_to_me(other, self.rel_pos_ests[other.name])
-            #print "flims at", self.top_left, "and", other.top_left
-
+def get_overlap_hists(self, other, max_err, debug=False):
         intersection = self.intersection(other)
         inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
-        if abs(inter_size[0]) < min_overlap[0] or abs(inter_size[1]) < min_overlap[1]:
-            print "Overlap too small - not aligning"
-            return False
         self_subimg = self.get_subimage(intersection[0], intersection[1])
         other_subimg = other.get_subimage(intersection[0], intersection[1])
         self_inner = self_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
@@ -145,7 +113,7 @@ class FloatingImage:
         self_other_hist = cv2.matchTemplate(self_subimg, other_inner, strategy)
         other_self_hist = cv2.matchTemplate(other_subimg, self_inner, strategy)
 
-        def make_noise():
+        if debug:
             plt.figure()
             plt.subplot(321)
             plt.title("overlapping region from im1")
@@ -166,7 +134,91 @@ class FloatingImage:
             plt.title("subimage position in im1")
             plt.imshow(other_self_hist)
             plt.show()
+
+        return self_other_hist, other_self_hist
+
+
+class FloatingImage:
+    """Floating images absolutely must all be the same size. Tuning currently strongly expects 1600x1200."""
+    # the sticking points for these requirements is mostly the map, for determining intersections, and also
+    # rectangle intersection
+    def __init__(self, image, position):
+        self.image = image
+        self.position = position
+        self.initial_position = position
+        self.path = [(position, "initial")]
+        self.size = (image.shape[1], image.shape[0])
+        self.top_left = self.position
+        self.bot_right = (self.top_left[0] + self.size[0], self.top_left[1] + self.size[1])
+        self.top_right = (self.top_left[0] + self.size[0], self.top_left[1])
+        self.bot_left = (self.top_left[0], self.top_left[1] + self.size[1])
+        self.name = "unnamed"
+        self.rel_pos_ests = {}
+
+    def update_position_extras(self, tracked=True, navigator_name="unknown"):
+        """called every time any internal function changes this object's position."""
+        self.top_left = self.position
+        self.bot_right = (self.top_left[0] + self.size[0], self.top_left[1] + self.size[1])
+        self.top_right = (self.top_left[0] + self.size[0], self.top_left[1])
+        self.bot_left = (self.top_left[0], self.top_left[1] + self.size[1])
+        if tracked:
+            # path is a list of all positions the floating image has ever had, for debugging or analysis purposes
+            self.path.append((self.top_left, navigator_name))
+
+    def update_pos(self, new_pos, max_change=(inf, inf), navigator_name="update_pos"):
+        """sets position of this object directly to new_pos, unless max_change is exceeded in x or y"""
+        if abs(new_pos[0] - self.position[0]) > max_change[0]:
+            print "refusing to move: too much x change"
+            return False
+        elif abs(new_pos[1] - self.position[1]) > max_change[1]:
+            print "refusing to move: too much y change"
+            return False
+        else:
+            self.position = new_pos
+            self.update_position_extras(navigator_name=navigator_name)
+            return True
+
+    def move(self, move_vector, navigator_name="move"):
+        """changes position by the given vector. does not have a
+        maximum because caller clearly knows the move distance already."""
+        self.update_pos((self.position[0] + move_vector[0], self.position[1] + move_vector[1]),
+                        navigator_name=navigator_name)
+
+    def set_pos_relative_to_me(self, other, rel_pos):
+        other.update_pos((self.top_left[0] + rel_pos[0], self.top_left[1] + rel_pos[1]),
+                         navigator_name=self.name + " set relative pos")
+
+    def record_initial_relative_position(self, other):
+        """call this on all pairs of images that might be pairwise-aligned later, using an estimate of their relative
+        position from before any alignments are performed"""
+        offset = tuple_diff(other.top_left, self.top_left)
+        self.rel_pos_ests[other.name] = offset
+
+
+
+    def align_other_to_me(self, other, max_err=(100, 100), min_overlap=(200, 200), debug=False, blur_hist=True):
+        """given two images, check if they overlap. If they do, minimize their image misalignment. Returns true if an
+        alignment is performed, or false if the images don't overlap or no alignment can be agreed upon. Requires
+        that the two images already be predicted to overlap by the microscope guess and that they are no more than
+        max_err from their correct aligned position."""
+
+        if other.name in self.rel_pos_ests.keys():
+            self.set_pos_relative_to_me(other, self.rel_pos_ests[other.name])
+        else:
+            print "other not in dictionary of original relative positions - not aligning"
+            return False
+
+        # crop from each image the region predicted to overlap with the other
+        intersection = self.intersection(other)
+        inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
+        if abs(inter_size[0]) < min_overlap[0] or abs(inter_size[1]) < min_overlap[1]:
+            print "Overlap too small - not aligning"
+            return False
+        self_other_hist, other_self_hist = get_overlap_hists(self, other, max_err, debug=debug)
+
         if blur_hist:
+            # blur_hist blurs the histogram before searching for a maximum
+            # this protects against spurious single-pixel maxima and stitches slightly more conservatively overall
             self_other_hist = cv2.blur(self_other_hist, (3,3))
             other_self_hist = cv2.blur(other_self_hist, (3,3))
         self_other_max = cv2.minMaxLoc(self_other_hist)[3]
@@ -174,33 +226,29 @@ class FloatingImage:
         self_offset_opinion = tuple_diff(self_other_max, max_err)
         other_offset_opinion = tuple_diff(max_err, other_self_max)
         disagreement = tuple_diff(self_offset_opinion, other_offset_opinion)
+        # stitching is usually accurate to within 1 pixel or so. We allow 5 because disagreements in the 3-5
+        # range are usually the result of blurry images where humans can't be pixel precise either
         if disagreement[0] > 5 or disagreement[1] > 5:
             print "disagreement is", disagreement, "consider fixing things"
             print "images:", self.name, other.name, "positions:", self.top_left, other.top_left
             print "not performint recommended adjust; using microscope guess"
-            if noisy:
-                make_noise()
-            moves.append("fail_disagree")
+
             return True
 
         if self_offset_opinion[0] == max_err[0] or self_offset_opinion[1] == max_err[1]:
-            print "slider is all the way to the wall, something is probably broken"
+            print "histogram maximum is on border of histogram. Probable error."
             print "images:", self.name, other.name
-            print "not performint recommended adjust; using microscope guess"
-            if noisy:
-                make_noise()
-            moves.append("fail_wall")
-            return True
+            print "not performing recommended adjust; using microscope guess"
 
+            return False
 
         ave = (int((self_offset_opinion[0] + other_offset_opinion[0])/2),
                int((self_offset_opinion[1] + other_offset_opinion[1])/2))
         other.move(ave)
-        moves.append(ave)
         return True
 
     def contains(self, point):
-        """contains (0,0) but not (1600, 1200)"""
+        """a rectangle contains its own top left corner, but none of the others"""
         if (self.top_left[0] <= point[0] <= self.bot_right[0]) and (self.top_left[1] <= point[1] <= self.bot_right[1]):
             return True
         return False
@@ -247,81 +295,87 @@ class FloatingImage:
         return self.image[local_top_left[1]:local_bot_right[1], local_top_left[0]:local_bot_right[0]]
 
     def __repr__(self):
-        return "(image" + self.name + " at " + str(self.top_left) + ")"
+        return "(image " + self.name + " at " + str(self.top_left) + ")"
 
 
 def grab_from_folder(folder_name):
     file_list = os.listdir(folder_name)
-    print len(file_list), "files detected"
+    print "files detected:"
+    print len(file_list)
     image_file = re.compile('Focused_[-0-9]+_[-0-9]+.jpg')
     images_with_positions = []
     i = 0
+    print "files read:"
     for filename in file_list:
-        if i % 100 == 0:
-            print i, "images read"
+        if i % 25 == 0:
+            print(str(i) + " "),
         i += 1
         if not image_file.match(filename):
-            print "file", filename, "has invalid name; ignoring"
+            # if you're working in a complicated directory for some reason, print statement
+            # here is nifty for debugging
             continue
-        fullname = folder_name + filename
+        fullname = folder_name + "\\" + filename
         filename = filename.replace(".jpg", "")
         filename = filename.replace("Focused_", "")
         x_y = tuple(filename.split("_"))
         x_y = (int(x_y[0]), -int(x_y[1]))
         image = cv2.imread(fullname)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         flim = FloatingImage(image, x_y)
 
         images_with_positions.append(flim)
     return images_with_positions
 
 
-def mass_align(flim_array, center_location, noisy=False, moves=[]):
+def mass_align(flim_array, center_location, noisy=False):
+    """this is the important step in image stitching. the images are aligned to minimize disagreement."""
     if noisy:
-        prettily_display(flim_array, "before mass align")
+        # this is among the less useful debug tools, but it can be nice for understanding the algorithm, if you need to
+        graph_frame_locations(flim_array, "before mass align")
     # setup
     area_tree = KDTree([flim.top_left for flim in flim_array])
     aligned = set()
     frontier = []
     distances, indices = area_tree.query([center_location], k=1, eps=0.1, p=2, distance_upper_bound=1000)
-    print "index of middle:", indices[0]
     frontier.append(flim_array[indices[0]])
     aligned.add(flim_array[indices[0]])
 
+    # this while loop is in the spirit of breadth-first search, and also prim;s
+    # first, the kdtree is used to identify the image closest to the center. This image is placed in the "aligned" set
+    # and not moved in the future. All of its neighbors are added to the frontier, aligned to it,
+    # and placed in "aligned." The image is then removed from the frontier. Repeat until the frontier is empty.
     while not len(frontier) == 0:
         curr = frontier.pop()
-        #print ""
-        #print "finding neighbors of", curr.top_left, "which is", curr.name
         dists, adjacent_indices = area_tree.query([curr.top_left], k=5, eps=0.1, p=1, distance_upper_bound=1200)
-        #print "dists", dists
-        #print "adjacent indices:", adjacent_indices
         valid_adjacent = [x for x in adjacent_indices[0] if x < len(flim_array)][1:]
-        #print "valid adjacent:", valid_adjacent
-
-        #print "aligned:", aligned
         adjacents = [flim_array[i] for i in valid_adjacent if not flim_array[i] in aligned]
-        #print "unaligned adjacents:", adjacents
 
         for flim in adjacents:
-            align = curr.align_other_to_me(flim, noisy=False, moves=moves)
+            align = curr.align_other_to_me(flim, debug=False)
             if align:
                 frontier.append(flim)
                 aligned.add(flim)
             else:
                 print "failed to align", flim.name, "to", curr.name
-
         area_tree = KDTree([flim.top_left for flim in flim_array])
 
-        #print ""
-
+    move_to_0_0(flim_array)
+    offsets = {}
+    for flim in flim_array:
+        offsets[flim.initial_position] = flim.top_left
+    return offsets
 
 def move_to_0_0(flim_array):
-    x_min, y_min = find_min(flim_array)
+    top_left, bot_right = find_corners(flim_array)
+    x_min, y_min = top_left
+    if top_left == (0,0):
+        return
     for flim in flim_array:
         flim.move((-x_min, -y_min))
 
 
-def prettily_display(flim_array, title=""):
+def graph_frame_locations(flim_array, title=""):
     total_im = mass_combine(flim_array, outline_images=False)
     shape = total_im.shape
     smaller = cv2.resize(total_im, (shape[1]/3, shape[0]/3))
@@ -336,7 +390,8 @@ def get_center(flim_array):
     y_max = max([flim.bot_right[1] for flim in flim_array])
     nearly_center = (x_max/2, y_max/2)
     center = tuple_diff(nearly_center, (800, 600))
-    print "center is", center
+    # in the minimal allowed print set
+    print "after alignment, center is", center
     return center
 
 
@@ -362,60 +417,106 @@ def trim_flim_array(xmin, xmax, ymin, ymax, flim_array):
     return new_array
 
 
-def main(argv):
-    read_dir_name = argv[0]
-    write_file_name = argv[1]
+def csv_of_dictionary(dictionary, key_col_name, val_col_name):
+    def line(key, value):
+        return str(key).ljust(18, ' ') + ": " + str(value) + "\n"
+    return key_col_name.ljust(18, ' ') + ": " + val_col_name + "\n" + ''.join([line(key, dictionary[key]) for key in dictionary.keys()])
 
+
+def write_storage_dir(dirname, full_image, offsets, agreements):
+    # in the minimal allowed print set
+    print "writing to", dirname
+    if os.path.exists(dirname):
+        sizes = [1, 4, 16, 32] # changing these values could bother coordFinder
+        def comp_name(size):
+            return "composite_" + str(size) + ".jpg"
+        composites_dirname = dirname + "\\composites"
+        if not os.path.exists(composites_dirname):
+            os.mkdir(composites_dirname)
+
+        for i in sizes:
+            scaled_im = cv2.resize(full_image, dsize=(0, 0), fx=1.0/i, fy=1.0/i, interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(dirname + "\\composites\\" + comp_name(i), scaled_im)
+
+        offsets_file = open(dirname + "\\offsets file.txt", mode="w+")
+        offsets_file.write(csv_of_dictionary(offsets, "initial", "final"))
+        offsets_file.write("\nMETADATA\n")
+        offsets_file.write("image_dim=" + str(full_image.shape) + "\n")
+        try:
+            offsets_file.write("agreement increase ratio: " + str(agreements[1][0]/agreements[0][0]))
+            print "agreement increase ratio:", str(agreements[1]/agreements[0])
+        except:
+            offsets_file.write("agreement increase ratio: unmeasured")
+    else:
+        print "error: file", dirname, "does not exist"
+
+
+def main(argv):
+    # read_dir_name = argv[0]
+    # should produce something like:
+    read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
+    # where 10x10_1 is the directory name of a
     flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
-    if len(argv) > 2:
+    pre_agreement = measure_agreement(flim_array)
+
+    for i in range(len(flim_array)):
+        flim = flim_array[i]
+        flim.name = "init_pos: " + str(flim.top_left)
+    if len(argv) == 5:
         xmin, xmax, ymin, ymax = argv[2], argv[3], argv[4], argv[5]
         flim_array = trim_flim_array(xmin, xmax, ymin, ymax, flim_array)
         move_to_0_0(flim_array)
-    for i in range(len(flim_array)):
-        flim_array[i].name = "index " + str(i)
 
     for flim_1 in flim_array:
         for flim_2 in flim_array:
             flim_1.record_initial_relative_position(flim_2)
 
     if True:
-        moves = []
         start = time.time()
-        move_to_0_0(flim_array)
-        tl = find_min(flim_array)
-        br = find_max(flim_array)
 
-        #plt.show()
-        print "tl:", tl, "br:", br
-
-        mass_align(flim_array, center_location=get_center(flim_array), moves=moves)
-        print "\n\ncalling mass combine\n\n"
+        offsets = mass_align(flim_array, center_location=get_center(flim_array))
+        print "calling mass combine: two steps, 0 and 1"
         total_im = mass_combine(flim_array, outline_images=False, feather=True)
         end = time.time()
-        print "mass combine ends"
-        print "runtime:", end-start
-        shape = total_im.shape
-        print "initial shape:", shape
-        if shape[1] > shape[0]:
-            pass
-            #h_ratio = 2000.0/shape[1]
-            #print "new shape:", (int(shape[0]*h_ratio), 2000)
-            #smaller = cv2.resize(total_im, (2000, int(shape[0]*h_ratio)))
-        else:
-            pass
-            #w_ratio = 2000/shape[0]
-            #smaller = cv2.resize(total_im, (shape[1]*w_ratio, 2000))
+        print "\nmass-combine ran in runtime:", end-start
 
-        #plt.imshow(smaller, cmap=cm.gray )
-        #plt.show()
-        cv2.imwrite(write_file_name, total_im)
-        failed_moves = [x for x in moves if isinstance(x, type(""))]
-        success_moves = [x for x in moves if (x not in failed_moves)]
-        print "num failed moves:", len(failed_moves)
-        print "num success moves:", len(success_moves)
-        #plt.hist2d([x[0] for x in moves], [x[1] for x in moves], bins=50)
-        #plt.show()
+        post_agreement = measure_agreement(flim_array)
+        write_storage_dir(read_dir_name, total_im, offsets, (pre_agreement, post_agreement))
+
+        if False:
+            def get_points(path_step, flim_array):
+                points= [flim.path[path_step] for flim in flim_array if len(flim.path) == 8]
+                print "points kept:", len(points)
+                x, y = [x[0] for x in points], [x[1] for x in points]
+                return x, y
+
+            for path_step in range(len(flim_array[0].path)):
+                print "path step:", path_step
+                x, y = get_points(path_step, flim_array)
+                plt.scatter(x, y)
+            plt.show()
+
+            for flim in flim_array:
+                print flim.path
+
+        if False:
+            # plots the paths of each image through the process
+            # change desirables to change which moves are displayed
+            # under the current arrangement, [2,3,4] should show the
+            # two parts of the pairwise_align step
+            desirables = [3,4]
+            #point_names = ["initial", "nonnegative", "to original offset", "align with neighbor"]
+            fig, ax = plt.subplots()
+            for flim in flim_array:
+                x, y = [x[0] for x in flim.path], [x[1] for x in flim.path]
+                x = [x[i] for i in desirables]
+                y = [y[i] for i in desirables]
+                ax.plot(x, y)
+
+                for i in range(len(x)):
+                    ax.annotate(str(i), (x[i], y[i]))
+            plt.show()
 
 if __name__ == "__main__":
     # takes: (read dir string, write filename string, xmin, xmax, ymin, ymax)

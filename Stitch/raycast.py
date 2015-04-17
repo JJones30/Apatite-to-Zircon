@@ -49,7 +49,7 @@ def raycast(image, rays=4, resolution=1, ret_type="image", dist_delta=1, blur=Fa
             ret = array
 
     if blur:
-        box_size = (int(math.ceil(resolution*2-1)), int(math.ceil(resolution*2-1)))
+        box_size = (resolution, resolution)
         if ret_type == "array":
             print "printing ret for investigative purposes:"
             print ret
@@ -57,9 +57,9 @@ def raycast(image, rays=4, resolution=1, ret_type="image", dist_delta=1, blur=Fa
             print "ret[0]", type(ret[0]), ret[0]
             print "ret[1]", type(ret[1]), ret[1]
 
-            ret = [cv2.boxFilter(x, -1, box_size) for x in ret]
+            ret = [cv2.boxFilter(x, -1, box_size, normalize=False) for x in ret]
         if ret_type == "image":
-            ret = cv2.boxFilter(x, -1, box_size)
+            ret = cv2.boxFilter(x, -1, box_size, normalize=False)
     return ret
 
 
@@ -143,28 +143,42 @@ def symmetry(image, downscale=4):
     return cv2.resize(out_im, (cv_sh[0], cv_sh[1]))
 
 # perform and clock basic raycast, 8-ray
-if True:
-    image = cv2.imread("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\1x1 skeleton denoised connected.jpg")
+
+def cast_rays(image, blur, resolution):
     image = cv2.threshold(image, thresh=128, maxval=255, type=cv2.THRESH_BINARY)[1]
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     image = morphology.dilation(image, morphology.diamond(3))
-    #plt.imshow(image)
-    #plt.show()
-    start = time.time()
-    global_res = 8
-    ray_array = raycast(image, rays=8, ret_type="array", resolution=global_res, blur=True)
-    end = time.time()
-    print "total runtime:", end-start
-    #plot_8(ray_array)
-    im8 = cv2.merge(ray_array)
-    for ray in ray_array:
-        shape = ray.shape
-        print cv2.sumElems(ray)[0]/(shape[0]*shape[1])
-    symage = symmetry(im8, global_res)
-    plt.subplot(121)
     plt.imshow(image)
-    plt.subplot(122)
-    plt.imshow(symage)
     plt.show()
+    start = time.time()
+    ray_array = raycast(image, rays=8, ret_type="array", resolution=resolution, blur=blur)
+    end = time.time()
+    return ray_array
+    #print "total runtime:", end-start
+    #plot_8(ray_array)
+    #im8 = cv2.merge(ray_array)
+    #for ray in ray_array:
+    #    shape = ray.shape
+    #    print cv2.sumElems(ray)[0]/(shape[0]*shape[1])
+    #symage = symmetry(im8, global_res)
+    #plt.subplot(121)
+    #plt.imshow(image)
+    #plt.subplot(122)
+    #plt.imshow(symage)
+    #plt.show()
 
-
+#image = cv2.imread("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\smile.jpg")
+image = cv2.imread("C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\whitesquare.jpg")
+image = cv2.threshold(image, 128, 255, cv2.THRESH_BINARY_INV)[1]
+no_blur = cast_rays(image, True, resolution=8)
+blur = cast_rays(image, False, resolution=8)
+no_blur_im = cv2.merge([no_blur[0], no_blur[2], no_blur[4]])
+blur_im = cv2.merge([blur[0], blur[2], blur[4]])
+plt.subplot(211)
+plt.imshow(no_blur_im)
+plt.subplot(212)
+plt.imshow(blur_im)
+plt.show()
+print no_blur
+print "\n\n\n\n\n"
+print blur
