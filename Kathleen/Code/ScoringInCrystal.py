@@ -18,8 +18,8 @@ import RayCast_v3 as rc3
 #file = 'Images/SlidesToTest/1479-6.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide.jpg'
 #file = 'Images/SlidesToTest/Slide_on_Slide_no_edges.jpg'
-file = 'Images/SlidesToTest/10x10_1_composite.jpg'
-#file = 'Images/Orig/Focused_ScopeStack.jpg'
+#file = 'Images/SlidesToTest/10x10_1_composite.jpg'
+file = 'Images/Orig/Focused_ScopeStack.jpg'
 
 #file = 'Images/SlidesToTest/BearForceTwo_randfeather.jpg' # file too large to run
 
@@ -27,13 +27,11 @@ raw_image = cv2.imread(file, 0)
 color_image = cv2.imread(file)
 
 
-
-
 eroded_image = sk.erodeEdges(raw_image, 3, 4.5)
 cv2.imwrite("Images/preprocess_eroded_image.jpg", eroded_image)
 
 
-# Optional time-consuming step to try connect endpoints and find more complete crystals
+# Optional time-consuming step to try connect endpoints and find more crystals
 # Comment out these two lines for faster runs
 #denoised_skel = sk.denoiseSkeleton(eroded_image, 25000)
 #eroded_image = sk.getConnectedCompontents(denoised_skel, np.copy(color_image))
@@ -51,9 +49,9 @@ def connectedComponentCenterDetector(color_image, raw_image, eroded_image):
     """
 
     # Use connected components to find crystal bodies and centers
-    centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image))
+    centers, bodies = icd.inverseConnnected(eroded_image, np.copy(color_image),minCirc=.35, maxSize=200000, minSize=5000)
     # Filter out crystals that are unlikely to be apatite
-    filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,bodies)
+    filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,bodies,textureArea=50, cutOff=1, maxScore=230)
 
     return filtered_centers
 
@@ -91,7 +89,7 @@ def centerMapCenterDetector(color_image, raw_image, eroded_image):
     cv2.imwrite('Images/center_map.jpg',scoreImg)
 
     centers = cc.chooseCenters(scoreImg,color_image, raw_image)
-    filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,None)
+    filtered_centers = cc.rankCenters(np.copy(color_image),raw_image,centers,None,textureArea=50, cutOff=1, maxScore=230)
 
     return filtered_centers
 

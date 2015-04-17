@@ -67,7 +67,8 @@ def chooseCenters(center_map, color_image,gray_image):
                                 color_image[i][j] = red
                             else:
                                 color_image[i][j] = green
-                                centers.append((x,y))
+                if ranged <= 200:
+                    centers.append((x,y))
 
             # set all values around chosen point to 0 to prevent multiple "centers" in small area
             blackOutBox(center_map, x, y, crystalSize)
@@ -154,7 +155,7 @@ def variationDetector(img, x, y, rng):
     return total
 
 
-def rankCenters(color_image,gray_image, centers, bodies):
+def rankCenters(color_image,gray_image, centers, bodies, textureArea=50, cutOff=1, maxScore=230):
     """
     Score each center of a crystal based on brightness and variance compared to a known crystal
     then use the score to filter out non-apatite bodies
@@ -163,12 +164,11 @@ def rankCenters(color_image,gray_image, centers, bodies):
     :param centers: List of centers of potential apatite crystals
     :param bodies: List of points in each body (Currently not used, but could be used in future for
     reasoning about texture)
+    :param textureArea: size of area used around center to examine texture
+    :param cutOff: Maximum raw score allowed before the ranged score defaults to maximum value
+    :param maxScore: Maximum score to be included (score out of 255, higher is less likely to be apatite)
     :return: list of centers filtered to include only crystals that are likely to be apatite
     """
-
-    textureArea = 50 # size of area used around center to examine texture
-    cutOff = 1 # Maximum raw score allowed before the ranged score defaults to maximum value
-    maxScore = 230 # Maximum score to be included (score out of 255, higher is less likely to be apatite)
 
 
     # Currently using a sample image. In future may want to get values from several sample images and then just

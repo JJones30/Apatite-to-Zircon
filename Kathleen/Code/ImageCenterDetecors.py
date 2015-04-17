@@ -284,14 +284,17 @@ def dstTransJustCenters(dstTrans, thresh, maxSize):
     return edges
 
 
-def inverseConnnected(skeleton, color_image):
-    """Find bodies of crystals and centers by running connected components on the
-    inverted skeleton"""
-
-    # Parameters for filtering out bodies that are not crystals
-    minCirc = .35 # minimum circularity
-    maxSize = 200000
-    minSize = 5000
+def inverseConnnected(skeleton, color_image, minCirc=.35, maxSize=200000, minSize=5000):
+    """
+    Find bodies of crystals and centers by running connected components on the
+    inverted skeleton
+    :param skeleton: skeleton of image
+    :param color_image: color image of slide
+    :param minCirc: minimum circularity for body to be considered a crystal
+    :param maxSize: maximum size for body to be considered a crystal
+    :param minSize: minimum size for body to be considered a crystal
+    :return: list of centers of crystals and list of bodies of crystals
+    """
 
     #Invert and dilate the skeleton to use for connected components
     inverse = 1 - skeleton
@@ -313,6 +316,7 @@ def inverseConnnected(skeleton, color_image):
     lw, num = measurements.label(inverse, [[1,1,1],[1,1,1],[1,1,1]])
     area = measurements.sum(inverse, lw, index=arange(lw.max() + 1))
 
+
     #Filter out areas where the crystal size is too large or too small
     filtareas = filter(lambda x: x < maxSize and x > minSize and x != 0, area)
     # Get list of bodies with their associated points from the labeled image
@@ -326,7 +330,9 @@ def inverseConnnected(skeleton, color_image):
     circularities = calcCircularity(perimeters, filtareas)
 
     # Find the centers of masses for all bodies in the labeled image
-    center_mass_unfilt = measurements.center_of_mass(inverse, lw, index=arange(lw.max() + 1))
+    index=  arange(lw.max())
+    index[0] = 1
+    center_mass_unfilt = measurements.center_of_mass(inverse, lw, index)
     # Filter out the centers of bodies that were too large or too small
     center_mass = []
     for i in range(len(center_mass_unfilt)):
@@ -368,7 +374,7 @@ def inverseConnnected(skeleton, color_image):
         centers.append(center)
 
     # Make a point in each body for the center
-    for point in centers[1:]:
+    for point in centers:
         x = int(point[0])
         y = int(point[1])
 
