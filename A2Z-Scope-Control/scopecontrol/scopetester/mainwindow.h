@@ -109,7 +109,7 @@ private:
 
 	//Handy utility stuff
 	//static void _Mat2QImage(const cv::Mat3b &src, QImage **dest);
-	void _Mat2QImage(const cv::Mat3b &src);
+	void _Mat2QImage(const cv::Mat3b src);
 	void FocusImage();
 	void ProgressUpdate();
 	void SetZoom(double &zoomX, double &zoomY, bool zoomChanged = false);
@@ -218,6 +218,7 @@ private:
 	int _MAXDEPTH = 11;
 	int _prevDepth = _MAXDEPTH;
 	int _threshold = 15;
+	bool _deleted = false;
 
 	//GUI related things
 	int _camImageDisplayWidth = 1600;

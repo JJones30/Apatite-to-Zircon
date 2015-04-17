@@ -618,7 +618,7 @@ void MainWindow::UpdateDepth()
 			Sleep(300);
 		}
 	}
-	else if (_offTheSlide && _zoomLevel == 10 && pctDiff < _threshold * 4)
+	else if (_offTheSlide && _zoomLevel == 10 && pctDiff < _threshold * 3.5)
 	{
 		_MAXDEPTH = 35;
 	}
@@ -833,7 +833,7 @@ void MainWindow::_handleArrowKeyRelease(QKeyEvent* event)
 void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 {
 	MainWindow* caller = (MainWindow*) pContext;
-	if (caller->_traverseCount == 0 && caller->_zCount == 0)
+	if (caller->_traverseCount%3 == 0 && caller->_zCount == 0)
 	{
 		//get the image size from the camera
 		int imageWidth, imageHeight;
@@ -866,8 +866,6 @@ void MainWindow::PreviewCallback(VOID *pContext, BYTE *pData, ULONG dataLength)
 		//Convert it to a QImage and put it in _camImage
 		caller->_camImage->setPixmap(QPixmap::fromImage(*(caller->_dest)));
 	}
-
-
 	//std::cout << caller->_camImage->pixmap()->size().width() << std::endl;
 }
 
@@ -894,7 +892,15 @@ void MainWindow::_previewCam()
 	//std::cout << "Got a frame, size: " << frame.size() << std::endl;
 
 	//Convert it to a QImage and put it in _camImage
-	_Mat2QImage(_outImage);
+	cv::Mat frame;
+	//std::cout << "Resizing frame..." << std::endl;
+	cv::resize(_outImage, frame, cv::Size(_camImageDisplayWidth, _camImageDisplayHeight), 0, 0, cv::INTER_AREA);
+	if (_dest == NULL)
+	{
+		_dest = new QImage(frame.cols, frame.rows, QImage::Format_ARGB32);
+	}
+
+	_Mat2QImage(frame);
 	_camImage->setPixmap(QPixmap::fromImage(*_dest));
 }
 
@@ -1277,8 +1283,8 @@ void MainWindow::SaveCurrentFrame()
 	_cam->getFrame(_outImage);
 	cv::cvtColor(_outImage, _outImage, CV_RGB2GRAY);
 	cv::imwrite(filename, _outImage);
-	if (_traverseCount > 0)
-		_previewCam();
+	//if (_traverseCount > 0 || _zCount > 0)
+	//	_previewCam();
 
 	//Manage memory
 	delete[] filename;
@@ -1445,7 +1451,7 @@ void MainWindow::_postStatus(const std::string status)
 }
 
 //Handy utility functions
-void MainWindow::_Mat2QImage(const cv::Mat3b &src)
+void MainWindow::_Mat2QImage(const cv::Mat3b src)
 {
 	for (int y = 0; y < src.rows; y++)
 	{
