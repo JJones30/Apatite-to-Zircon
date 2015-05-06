@@ -465,7 +465,7 @@ def main(argv):
     # where 10x10_1 is the directory name of a
     flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
-    pre_agreement = measure_agreement(flim_array)
+    #pre_agreement = measure_agreement(flim_array)
 
     for i in range(len(flim_array)):
         flim = flim_array[i]
@@ -488,7 +488,7 @@ def main(argv):
         end = time.time()
         print "\nmass-combine ran in runtime:", end-start
 
-        post_agreement = measure_agreement(flim_array)
+        #post_agreement = measure_agreement(flim_array)
         write_storage_dir(read_dir_name, total_im, offsets, (pre_agreement, post_agreement))
 
         if False:
