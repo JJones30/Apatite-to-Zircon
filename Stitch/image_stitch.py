@@ -458,13 +458,18 @@ def write_storage_dir(dirname, full_image, offsets, agreements):
 
 
 def main(argv):
-    # read_dir_name = argv[0]
+
+    read_dir_name = ""
+    for index in range(4):
+        read_dir_name += argv[index]
+        read_dir_name += " "
+    read_dir_name = read_dir_name[:-1]
     # should produce something like:
     read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
     # where 10x10_1 is the directory name of a
     flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
-    pre_agreement = measure_agreement(flim_array)
+    #pre_agreement = measure_agreement(flim_array)
 
 
 
@@ -489,8 +494,8 @@ def main(argv):
         end = time.time()
         print "\nmass-combine ran in runtime:", end-start
 
-        post_agreement = measure_agreement(flim_array)
-        write_storage_dir(read_dir_name, total_im, offsets, (pre_agreement, post_agreement))
+        #post_agreement = measure_agreement(flim_array)
+        #write_storage_dir(read_dir_name, total_im, offsets, (pre_agreement, post_agreement))
 
         # false unless printing move paths (textually)
         if False:

@@ -245,6 +245,7 @@ private:
 	const int ZOOM_10 = 10;
 	const int ZOOM_20 = 20;
 	const int ZOOM_40 = 40;
+	const int SLEEP_TIME = 300;
 
 	const int _stageError = 100;
 

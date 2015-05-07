@@ -383,17 +383,20 @@ void MainWindow::_onTraversalTimer()
 	int zoomChange = 0;
 	int noChangeInY = 1;
 
+	// Determine zoom level
 	SetZoom(zoomX, zoomY);
 
+	// Find current location on slide
 	_stage->where(curX, curY);
 	int x = zoomX * (curX - _xOffset) / -MM_TO_STAGE_UNITS;
 	int y = zoomY * (curY - _yOffset) / MM_TO_STAGE_UNITS;
+
 	if (((x > _xPixels) || (x < -_stageError/2)) && (_zCount % 	_MAXDEPTH == 1 && _zPos == 0))
 	{
 		if (!_stage->move(curX + 1 * 0.002 * -1 * MM_TO_STAGE_UNITS, curY + 1 * _stageYSpeed * MM_TO_STAGE_UNITS))
 			_postStatus("Failed to move stage!");
 
-		Sleep(300);
+		Sleep(SLEEP_TIME);
 		_travRev *= -1;
 		_zCount--;
 		_stage->where(curX, curY);
@@ -459,7 +462,7 @@ void MainWindow::_onTraversalTimer()
 			if (!_stage->move(curX + 1 * _stageXSpeed * _travRev * MM_TO_STAGE_UNITS, curY))
 				_postStatus("Failed to move stage!");
 
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 			SaveCurrentFrame();
 			++_zCount;
 		}
@@ -472,7 +475,7 @@ void MainWindow::_onTraversalTimer()
 			else
 				_zPos++;
 
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 			SaveCurrentFrame();
 			++_zCount;
 		}
@@ -484,7 +487,7 @@ void MainWindow::_onTraversalTimer()
 				_postStatus("Failed to move stage!");
 			else
 				_zPos--;
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 		else if (_zCount % _MAXDEPTH > _MAXDEPTH/2)
 		{
@@ -495,7 +498,7 @@ void MainWindow::_onTraversalTimer()
 			else
 				_zPos--;
 
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 			SaveCurrentFrame();
 			++_zCount;
 		}
@@ -507,7 +510,7 @@ void MainWindow::_onTraversalTimer()
 				_postStatus("Failed to move stage!");
 			else
 				_zPos++;
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 	}
 }
@@ -568,7 +571,6 @@ void MainWindow::UpdateDepth()
 	}
 
 	int pctDiff = (min * 100) / (max + 1);
-	pctDiff == 0 ? pctDiff = 31 : pctDiff;
 	if (pctDiff < _threshold)
 	{
 		_offTheSlide = false;
@@ -585,13 +587,13 @@ void MainWindow::UpdateDepth()
 		{
 			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 				_postStatus("Failed to move stage!");
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 		else if (depthChange < 0)
 		{
 			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 				_postStatus("Failed to move stage!");
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 	}
 	else if (_offTheSlide && pctDiff < _threshold * 2)
@@ -609,13 +611,13 @@ void MainWindow::UpdateDepth()
 		{
 			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 				_postStatus("Failed to move stage!");
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 		else if (depthChange < 0)
 		{
 			if (!_stage->move(curZ + depthChange * _stageZIncrement * _reverseZ * MM_TO_STAGE_UNITS))
 				_postStatus("Failed to move stage!");
-			Sleep(300);
+			Sleep(SLEEP_TIME);
 		}
 	}
 	else if (_offTheSlide && _zoomLevel == 10 && pctDiff < _threshold * 3.5)
@@ -1348,7 +1350,7 @@ void MainWindow::FocusImage()
  */
 void MainWindow::PythonCallout()
 {
-	std::string cmd = "\"\"C:\\Users\\Ray Donelick\\Anaconda\\python.exe\" \"C:\\Users\\Ray Donelick\\Documents\\Ravi\\Apatite-to-Zircon\\Stitch\\image_stitch.py\" \"C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Focused Images\\#C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Stitched\\Slide.jpg\"\"";
+	std::string cmd = "\"\"C:\\Users\\Ray Donelick\\Anaconda\\python.exe\" \"C:\\Users\\Ray Donelick\\Documents\\Ravi\\Apatite-to-Zircon\\Stitch\\image_stitch.py\" \"C:\\Users\\Ray Donelick\\Pictures\\Test Images\\Focused Images\\""";
 	std::system(cmd.c_str());
 }
 
