@@ -78,7 +78,7 @@ def mass_combine(flim_list, outline_images=False, feather=True, run_num=0, backd
 
 
 def measure_agreement(flim_array):
-    if True:
+    if False:
         print "\nmeasuring agreement. this step might be very slow for large images. disable above this print statement."
     else:
         # the results
@@ -104,40 +104,41 @@ def measure_agreement(flim_array):
     print "agreement runtime:", str(end-start) + "s"
     return agreement_sum/overlap_pixels
 
+
 def get_overlap_hists(self, other, max_err, debug=False):
-        intersection = self.intersection(other)
-        inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
-        self_subimg = self.get_subimage(intersection[0], intersection[1])
-        other_subimg = other.get_subimage(intersection[0], intersection[1])
-        self_inner = self_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
-        other_inner = other_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
-        strategy = cv2.TM_CCOEFF_NORMED
-        self_other_hist = cv2.matchTemplate(self_subimg, other_inner, strategy)
-        other_self_hist = cv2.matchTemplate(other_subimg, self_inner, strategy)
+    intersection = self.intersection(other)
+    inter_size = (intersection[1][0] - intersection[0][0], intersection[1][1] - intersection[0][1])
+    self_subimg = self.get_subimage(intersection[0], intersection[1])
+    other_subimg = other.get_subimage(intersection[0], intersection[1])
+    self_inner = self_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
+    other_inner = other_subimg[max_err[1]:inter_size[1]-max_err[1], max_err[0]:inter_size[0]-max_err[0]]
+    strategy = cv2.TM_CCOEFF_NORMED
+    self_other_hist = cv2.matchTemplate(self_subimg, other_inner, strategy)
+    other_self_hist = cv2.matchTemplate(other_subimg, self_inner, strategy)
 
-        if debug:
-            plt.figure()
-            plt.subplot(321)
-            plt.title("overlapping region from im1")
-            plt.imshow(self_subimg, cmap=cm.gray)
-            plt.subplot(322)
-            plt.title("overlapping region from im2")
-            plt.imshow(other_subimg, cmap=cm.gray)
-            plt.subplot(323)
-            plt.title("subimage with border removed")
-            plt.imshow(self_inner, cmap=cm.gray)
-            plt.subplot(324)
-            plt.title("subimage with border removed")
-            plt.imshow(other_inner, cmap=cm.gray)
-            plt.subplot(325)
-            plt.title("subimage position in im2")
-            plt.imshow(self_other_hist)
-            plt.subplot(326)
-            plt.title("subimage position in im1")
-            plt.imshow(other_self_hist)
-            plt.show()
+    if debug:
+        plt.figure()
+        plt.subplot(321)
+        plt.title("overlapping region from im1")
+        plt.imshow(self_subimg, cmap=cm.gray)
+        plt.subplot(322)
+        plt.title("overlapping region from im2")
+        plt.imshow(other_subimg, cmap=cm.gray)
+        plt.subplot(323)
+        plt.title("subimage with border removed")
+        plt.imshow(self_inner, cmap=cm.gray)
+        plt.subplot(324)
+        plt.title("subimage with border removed")
+        plt.imshow(other_inner, cmap=cm.gray)
+        plt.subplot(325)
+        plt.title("subimage position in im2")
+        plt.imshow(self_other_hist)
+        plt.subplot(326)
+        plt.title("subimage position in im1")
+        plt.imshow(other_self_hist)
+        plt.show()
 
-        return self_other_hist, other_self_hist
+    return self_other_hist, other_self_hist
 
 
 class FloatingImage:
@@ -198,7 +199,7 @@ class FloatingImage:
 
 
 
-    def align_other_to_me(self, other, max_err=(100, 100), min_overlap=(200, 200), debug=False, blur_hist=True):
+    def align_other_to_me(self, other, max_err=(100, 100), min_overlap=(200, 200), blur_hist=True):
         """given two images, check if they overlap. If they do, minimize their image misalignment. Returns true if an
         alignment is performed, or false if the images don't overlap or no alignment can be agreed upon. Requires
         that the two images already be predicted to overlap by the microscope guess and that they are no more than
@@ -216,7 +217,7 @@ class FloatingImage:
         if abs(inter_size[0]) < min_overlap[0] or abs(inter_size[1]) < min_overlap[1]:
             print "Overlap too small - not aligning"
             return False
-        self_other_hist, other_self_hist = get_overlap_hists(self, other, max_err, debug=debug)
+        self_other_hist, other_self_hist = get_overlap_hists(self, other, max_err)
 
         if blur_hist:
             # blur_hist blurs the histogram before searching for a maximum
@@ -354,12 +355,14 @@ def mass_align(flim_array, center_location, noisy=False):
         adjacents = [flim_array[i] for i in valid_adjacent if not flim_array[i] in aligned]
 
         for flim in adjacents:
-            align = curr.align_other_to_me(flim, debug=False)
+            align = curr.align_other_to_me(flim)
             if align:
                 frontier.append(flim)
                 aligned.add(flim)
             else:
                 print "failed to align", flim.name, "to", curr.name
+        # probably there is a better way than remaking the tree every time you remove an item from it or move an item
+        # within it but I don't know what it is
         area_tree = KDTree([flim.top_left for flim in flim_array])
 
     move_to_0_0(flim_array)
@@ -455,13 +458,15 @@ def write_storage_dir(dirname, full_image, offsets, agreements):
 
 
 def main(argv):
-    read_dir_name = argv[0]
+    # read_dir_name = argv[0]
     # should produce something like:
-    # read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
+    read_dir_name = "C:\Users\Clinic\PycharmProjects\Apatite-to-Zircon\\test_images\\10x10_1"
     # where 10x10_1 is the directory name of a
     flim_array = grab_from_folder(read_dir_name)
     move_to_0_0(flim_array)
     pre_agreement = measure_agreement(flim_array)
+
+
 
     for i in range(len(flim_array)):
         flim = flim_array[i]
@@ -474,7 +479,7 @@ def main(argv):
     for flim_1 in flim_array:
         for flim_2 in flim_array:
             flim_1.record_initial_relative_position(flim_2)
-
+    # true when doing anything
     if True:
         start = time.time()
 
@@ -487,6 +492,7 @@ def main(argv):
         post_agreement = measure_agreement(flim_array)
         write_storage_dir(read_dir_name, total_im, offsets, (pre_agreement, post_agreement))
 
+        # false unless printing move paths (textually)
         if False:
             def get_points(path_step, flim_array):
                 points= [flim.path[path_step] for flim in flim_array if len(flim.path) == 8]
@@ -503,6 +509,7 @@ def main(argv):
             for flim in flim_array:
                 print flim.path
 
+        # false unless printing move paths (graphically this time)
         if False:
             # plots the paths of each image through the process
             # change desirables to change which moves are displayed

@@ -102,4 +102,4 @@ initial           : final
 
 METADATA
 image_dim=(7841L, 11388L)
-agreement increase ratio: 3.0946198741
+agreement increase ratio: unmeasured
